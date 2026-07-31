@@ -1,0 +1,32 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "SuuvieAI: Run Server",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/app.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "envFile": "${workspaceFolder}/.env",
+      "python": "${command:python.interpreterPath}"
+    },
+    {
+      "name": "SuuvieAI: Run + Open Browser",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/app.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "envFile": "${workspaceFolder}/.env",
+      "python": "${command:python.interpreterPath}",
+      "serverReadyAction": {
+        "pattern": "URL\\s+:\\s+https?://[\\w.:]+",
+        "uriFormat": "http://127.0.0.1:5000",
+        "action": "openExternally"
+      }
+    }
+  ]
+}

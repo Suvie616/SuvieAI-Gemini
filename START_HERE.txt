@@ -1,0 +1,20 @@
+========================================
+  SuuvieAI — RUN INSIDE VS CODE
+========================================
+
+1. Open VS Code
+2. File → Open Folder → select the "suuvieai" folder
+3. Install Python extension if asked
+4. Terminal → Run Task → "SuuvieAI: Setup (venv + install)"
+5. Ctrl+Shift+P → "Python: Select Interpreter" → pick .venv
+6. Open js/firebase-config.js and PASTE your Firebase web config
+7. In Firebase Console:
+     - Authentication → Google → Enable
+     - Firestore → Create database
+     - Firestore → Rules → paste firestore.rules → Publish
+8. Press F5  (Run and Debug → SuuvieAI: Run Server)
+9. Open http://127.0.0.1:5000
+10. Click "Sign in with Google" → chat → history saves to Firebase
+
+Gemini API key is already in the .env file.
+========================================

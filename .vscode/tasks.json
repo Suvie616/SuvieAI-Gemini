@@ -1,0 +1,68 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "SuuvieAI: Create venv",
+      "type": "shell",
+      "command": "python -m venv .venv || python3 -m venv .venv",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "SuuvieAI: Install dependencies",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe -m pip install -r requirements.txt || ${workspaceFolder}/.venv/bin/python -m pip install -r requirements.txt || python -m pip install -r requirements.txt || python3 -m pip install -r requirements.txt",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "SuuvieAI: Setup (venv + install)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "SuuvieAI: Create venv",
+        "SuuvieAI: Install dependencies"
+      ],
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "SuuvieAI: Run server",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe app.py || ${workspaceFolder}/.venv/bin/python app.py || python app.py || python3 app.py",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "suuvieai",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "SuuvieAI",
+          "endsPattern": "Running on|Open the URL"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    }
+  ]
+}
