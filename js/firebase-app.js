@@ -37,7 +37,8 @@ import {
   updateDoc,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
-import { firebaseConfig, FIREBASE_ENABLED } from "./firebase-config.js";
+import { firebaseConfig } from "./firebase-config.js";
+import * as _fbConfigMod from "./firebase-config.js";
 
 let app = null;
 let auth = null;
@@ -47,6 +48,18 @@ let ready = false;
 let initError = null;
 
 const LS_PREFIX = "suuvieai_chats_v2_";
+
+const FIREBASE_ENABLED = Boolean(
+  (_fbConfigMod.FIREBASE_ENABLED === true) ||
+  (
+    firebaseConfig &&
+    firebaseConfig.apiKey &&
+    firebaseConfig.apiKey !== "PASTE_API_KEY" &&
+    firebaseConfig.projectId &&
+    firebaseConfig.projectId !== "PASTE_PROJECT_ID"
+  )
+);
+
 
 export function isFirebaseReady() {
   return ready && FIREBASE_ENABLED;
