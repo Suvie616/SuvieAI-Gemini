@@ -248,19 +248,19 @@ def _extract_reply_and_images(payload: dict) -> tuple[str, list[str]]:
 
 
 def _call_chat(messages: list[dict], model: str | None = None) -> tuple[str | None, list[str], str | None, int]:
-    url = f"https://{API_BASE_URL}/chat/completions"
     model = model or MODEL_NAME
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+
     try:
         response = requests.post(
             url,
             headers={
-                "Authorization": f"Bearer {API_KEY}",
+                "x-goog-api-key": API_KEY,
                 "Content-Type": "application/json",
             },
             json={
-                "model": model,
-                "messages": messages,
-                "temperature": 0.7,
+                "contents": messages,
+                "generationConfig": {"temperature": 0.7},
             },
             timeout=120,
         )
@@ -274,22 +274,28 @@ def _call_chat(messages: list[dict], model: str | None = None) -> tuple[str | No
         try:
             err_body = response.json()
             err = err_body.get("error")
-            if isinstance(err, dict):
-                detail = err.get("message")
-            else:
-                detail = err or err_body.get("message")
+            detail = err.get("message") if isinstance(err, dict) else str(err)
         except Exception:
             detail = (response.text or "")[:400]
         return None, [], detail or f"AI service returned status {response.status_code}.", 502
 
     try:
         payload = response.json()
-        text, images = _extract_reply_and_images(payload)
+        candidates = payload.get("candidates") or []
+        texts, images = [], []
+        for cand in candidates:
+            for part in cand.get("content", {}).get("parts", []):
+                if "text" in part:
+                    texts.append(part["text"])
+                inline = part.get("inlineData") or part.get("inline_data")
+                if inline and inline.get("data"):
+                    mime = inline.get("mimeType") or inline.get("mime_type") or "image/png"
+                    images.append(f"data:{mime};base64,{inline['data']}")
+        text = "\n".join(texts).strip() or "(empty response)"
         return text, images, None, 200
     except Exception:
         traceback.print_exc()
         return None, [], "Unexpected response format from the AI service.", 502
-
 
 def _call_native_generate_image(prompt: str, image_parts: list[dict] | None = None) -> tuple[str | None, list[str], str | None, int]:
     """
