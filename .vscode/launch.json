@@ -24,7 +24,7 @@
       "python": "${command:python.interpreterPath}",
       "serverReadyAction": {
         "pattern": "URL\\s+:\\s+https?://[\\w.:]+",
-        "uriFormat": "http://127.0.0.1:5000",
+        "uriFormat": "http://localhost:5000",
         "action": "openExternally"
       }
     }

@@ -1,5 +1,5 @@
 """
-SuvieAI — Flask backend
+SuuvieAI — Flask backend
 - Chat (text + file attachments)
 - Image create / edit via Gemini
 - Code-friendly system prompt
@@ -35,10 +35,11 @@ API_BASE_URL = (
     os.getenv("API_BASE_URL") or "https://generativelanguage.googleapis.com/v1beta/openai"
 ).rstrip("/")
 MODEL_NAME = (os.getenv("MODEL_NAME") or "gemini-3.6-flash").strip()
-IMAGE_MODEL = (os.getenv("IMAGE_MODEL") or "gemini-2.5-flash-image").strip()
+IMAGE_MODEL = (os.getenv("IMAGE_MODEL") or "gemini-3.1-flash-image").strip()
 
 HOST = os.getenv("HOST", "0.0.0.0")
-PORT = int(os.getenv("PORT", "5000"))
+# Render injects PORT; local default 5000
+PORT = int(os.getenv("PORT") or os.getenv("WEB_PORT") or "5000")
 PUBLIC_HOST = os.getenv("PUBLIC_HOST", "localhost")
 
 MAX_TEXT_FILE_CHARS = 80_000
@@ -48,7 +49,7 @@ MAX_ATTACHMENTS = 8
 app = Flask(__name__)
 
 SYSTEM_PROMPT = (
-    "You are SuvieAI, a friendly modern assistant with strong coding skills.\n"
+    "You are SuuvieAI, a friendly modern assistant with strong coding skills.\n"
     "- Write clear, working code with brief explanations.\n"
     "- Use fenced markdown code blocks with a language tag (```python, ```js, etc).\n"
     "- When the user attaches files, use their contents as context.\n"
@@ -248,19 +249,19 @@ def _extract_reply_and_images(payload: dict) -> tuple[str, list[str]]:
 
 
 def _call_chat(messages: list[dict], model: str | None = None) -> tuple[str | None, list[str], str | None, int]:
+    url = f"{API_BASE_URL}/chat/completions"
     model = model or MODEL_NAME
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-
     try:
         response = requests.post(
             url,
             headers={
-                "x-goog-api-key": API_KEY,
+                "Authorization": f"Bearer {API_KEY}",
                 "Content-Type": "application/json",
             },
             json={
-                "contents": messages,
-                "generationConfig": {"temperature": 0.7},
+                "model": model,
+                "messages": messages,
+                "temperature": 0.7,
             },
             timeout=120,
         )
@@ -274,28 +275,22 @@ def _call_chat(messages: list[dict], model: str | None = None) -> tuple[str | No
         try:
             err_body = response.json()
             err = err_body.get("error")
-            detail = err.get("message") if isinstance(err, dict) else str(err)
+            if isinstance(err, dict):
+                detail = err.get("message")
+            else:
+                detail = err or err_body.get("message")
         except Exception:
             detail = (response.text or "")[:400]
         return None, [], detail or f"AI service returned status {response.status_code}.", 502
 
     try:
         payload = response.json()
-        candidates = payload.get("candidates") or []
-        texts, images = [], []
-        for cand in candidates:
-            for part in cand.get("content", {}).get("parts", []):
-                if "text" in part:
-                    texts.append(part["text"])
-                inline = part.get("inlineData") or part.get("inline_data")
-                if inline and inline.get("data"):
-                    mime = inline.get("mimeType") or inline.get("mime_type") or "image/png"
-                    images.append(f"data:{mime};base64,{inline['data']}")
-        text = "\n".join(texts).strip() or "(empty response)"
+        text, images = _extract_reply_and_images(payload)
         return text, images, None, 200
     except Exception:
         traceback.print_exc()
         return None, [], "Unexpected response format from the AI service.", 502
+
 
 def _call_native_generate_image(prompt: str, image_parts: list[dict] | None = None) -> tuple[str | None, list[str], str | None, int]:
     """
@@ -586,7 +581,7 @@ if __name__ == "__main__":
 
     print()
     print("=" * 56)
-    print("  SuvieAI")
+    print("  SuuvieAI")
     print("=" * 56)
     print(f"  Open  →  {public_url}")
     print("  Features: chat · files · code · image create/edit")

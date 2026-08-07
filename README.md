@@ -1,142 +1,101 @@
 # SuuvieAI
 
-ChatGPT-style chat app:
+ChatGPT-style app with:
 
-- **Flask** backend → Google **Gemini**
-- **Firebase** Auth (Google sign-in) + **Firestore** chat history
-- Runs inside **VS Code** (Run and Debug)
-
----
-
-## Run inside VS Code (recommended)
-
-1. **Unzip** and open the folder in VS Code  
-   `File → Open Folder… → suuvieai`
-
-2. Install recommended extensions when prompted  
-   (Python + debugpy)
-
-3. **Setup once**  
-   - `Terminal → Run Task… → SuuvieAI: Setup (venv + install)`  
-   - Or in the VS Code terminal:
-     ```bash
-     python -m venv .venv
-     # Windows:
-     .venv\Scripts\activate
-     # Mac/Linux:
-     source .venv/bin/activate
-     pip install -r requirements.txt
-     ```
-   - Select the interpreter: `Ctrl+Shift+P` → **Python: Select Interpreter** → `.venv`
-
-4. **Firebase** (required for saving chats)  
-   - Open `js/firebase-config.js`  
-   - Paste your Firebase web config (see below)  
-   - Enable Google sign-in + Firestore (see below)
-
-5. **Run**  
-   - Press **F5**  
-   - Or Run and Debug → **SuuvieAI: Run Server**  
-   - Open **http://127.0.0.1:5000** (Simple Browser or Chrome)
-
-Keep the VS Code terminal running. Stop with the red square or `Ctrl+C`.
+- **Gemini** chat (code-friendly)
+- **File attachments** (images + code/text)
+- **Image create / edit**
+- **Firebase** Google sign-in + Firestore history
+- Runs in **VS Code** or terminal
 
 ---
 
-## Firebase setup (one time)
+## Quick start
 
-### A) Web app config
-1. [Firebase Console](https://console.firebase.google.com/) → your project  
-2. ⚙️ Project settings → **Your apps** → Web (`</>`)  
-3. Copy the `firebaseConfig` object  
-4. Paste into `js/firebase-config.js`
+```bash
+git clone <your-repo-url>
+cd suuvieai
+python -m venv .venv
 
-### B) Google sign-in
-1. **Build → Authentication → Get started**  
-2. **Sign-in method → Google → Enable → Save**  
-3. **Settings → Authorized domains** → ensure `localhost` is listed  
+# Windows
+.venv\Scripts\activate
+# Mac/Linux
+source .venv/bin/activate
 
-### C) Firestore
-1. **Build → Firestore Database → Create database**  
-2. Start in **test mode** (or production + paste rules)  
-3. **Rules** tab → paste contents of `firestore.rules` → **Publish**
+pip install -r requirements.txt
+cp .env.example .env
+# edit .env → add GEMINI API_KEY
 
-### D) Google Cloud (if sign-in popup errors)
-- Cloud Console → APIs → enable **Identity Toolkit API** if prompted  
-- OAuth consent screen configured (External is fine for testing)
+# optional Firebase
+cp js/firebase-config.example.js js/firebase-config.js
+# paste your Firebase web config into js/firebase-config.js
 
----
-
-## What gets stored
-
-```
-users/{yourGoogleUid}/chats/{chatId}
-  title, preview, createdAt, updatedAt
-
-users/{yourGoogleUid}/chats/{chatId}/messages/{messageId}
-  role: "user" | "assistant"
-  content, createdAt
+python app.py
 ```
 
-Only **you** can read/write your own path (see `firestore.rules`).
+Open **http://localhost:5000** (use `localhost`, not `127.0.0.1`, for Google sign-in).
+
+### Windows one-click
+Double-click `start.bat`
+
+### VS Code
+1. Open folder  
+2. Run Task → **SuuvieAI: Setup**  
+3. Select `.venv` interpreter  
+4. Press **F5**
 
 ---
 
-## Project layout
-
-```
-suuvieai/
-├── .vscode/               ← Run/Debug inside VS Code
-│   ├── launch.json
-│   ├── tasks.json
-│   ├── settings.json
-│   └── extensions.json
-├── js/
-│   ├── firebase-config.js ← PASTE your Firebase config here
-│   └── firebase-app.js    ← Auth + Firestore helpers
-├── app.py                 ← Flask + Gemini proxy
-├── index.html
-├── style.css
-├── script.js
-├── firestore.rules
-├── .env                   ← Gemini API key
-├── requirements.txt
-└── README.md
-```
-
----
-
-## .env (Gemini)
-
-Already filled if you received this package:
+## Environment (`.env`)
 
 ```env
 API_KEY=your_gemini_key
 API_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
 MODEL_NAME=gemini-3.6-flash
+IMAGE_MODEL=gemini-3.1-flash-image
 ```
+
+Get a free key: https://aistudio.google.com/apikey
+
+**Never commit `.env`.**
 
 ---
 
-## Troubleshooting
+## Firebase (optional, for chat history)
 
-| Problem | Fix |
+1. Copy `js/firebase-config.example.js` → `js/firebase-config.js`
+2. Paste web config from Firebase Console
+3. Enable **Google** sign-in
+4. Create **Firestore** and publish `firestore.rules`
+
+See `FIREBASE_SETUP.txt`.
+
+---
+
+## Features
+
+| Feature | How |
 |--------|-----|
-| F5 does nothing | Install **Python** + **Python Debugger** extensions |
-| `No module named flask` | Run task **SuuvieAI: Setup** and select `.venv` interpreter |
-| Sign-in popup blocked | Allow popups for localhost; `localhost` must be authorized domain |
-| `Missing or insufficient permissions` | Publish `firestore.rules` |
-| Chats don't save | Sign in with Google first; check browser console |
-| API key error on chat | Check `.env` `API_KEY` and restart F5 |
+| Chat | Type and Enter |
+| Attach files | 📎 / drag-drop / paste image |
+| Code | AI returns copyable fenced blocks |
+| Create image | Mode **Image** or “generate an image…” |
+| Edit image | Attach image → Mode **Image** → edit prompt |
+| History | Sign in with Google |
 
 ---
 
-## Outside VS Code (optional)
+## Safety before GitHub
 
-```bash
-# Windows
-start.bat
+Do **not** push:
 
-# Mac/Linux
-chmod +x start.sh && ./start.sh
-```
+- `.env` (Gemini key)
+- Real keys inside `js/firebase-config.js` (use placeholders + example file)
+
+Firebase web `apiKey` is a client key, but still better to let each user paste their own.
+
+---
+
+## License
+
+MIT — use freely.

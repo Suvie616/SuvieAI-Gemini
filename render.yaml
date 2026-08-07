@@ -1,0 +1,21 @@
+# Render Blueprint — optional (service already exists)
+# https://dashboard.render.com
+services:
+  - type: web
+    name: SuvieAI-Gemini
+    runtime: python
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 1
+    healthCheckPath: /health
+    envVars:
+      - key: API_KEY
+        sync: false
+      - key: API_BASE_URL
+        value: https://generativelanguage.googleapis.com/v1beta/openai
+      - key: MODEL_NAME
+        value: gemini-3.6-flash
+      - key: IMAGE_MODEL
+        value: gemini-3.1-flash-image

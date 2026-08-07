@@ -13,8 +13,17 @@
      - Firestore → Create database
      - Firestore → Rules → paste firestore.rules → Publish
 8. Press F5  (Run and Debug → SuuvieAI: Run Server)
-9. Open http://127.0.0.1:5000
+9. Open http://localhost:5000
+   IMPORTANT: use localhost — NOT 127.0.0.1
+   (Firebase blocks 127.0.0.1 by default)
 10. Click "Sign in with Google" → chat → history saves to Firebase
+    If popup is blocked, click "Sign in (redirect)"
+
+If sign-in still fails, open the browser console (F12) and read the red error.
+Common fixes:
+  - Authentication → Sign-in method → Google → Enable
+  - Authorized domains must include: localhost
+  - Allow popups for localhost
 
 Gemini API key is already in the .env file.
 ========================================

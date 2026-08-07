@@ -1,11 +1,30 @@
+# Secrets — never commit
 .env
+.env.local
+.env.*.local
+
+# Firebase local overrides (keep example only)
+js/firebase-config.local.js
+
+# Python
 .venv/
 venv/
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 .pytest_cache/
 .mypy_cache/
+*.egg-info/
+dist/
+build/
+
+# OS / editors
 .DS_Store
-*.log
+Thumbs.db
 .idea/
 .vscode/*.log
+*.log
+
+# Local junk
+*.zip
+.arena/

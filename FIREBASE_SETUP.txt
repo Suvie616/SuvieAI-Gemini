@@ -1,0 +1,46 @@
+========================================
+  FIX CHAT STORAGE (Firebase)
+========================================
+
+Your Google sign-in already works.
+To store chats in the cloud, do these once:
+
+1) Open https://console.firebase.google.com/
+   Project: suvieai-gemini
+
+2) Build → Firestore Database
+   - Click "Create database" if you haven't
+   - Start in production mode (or test mode)
+   - Pick any location → Enable
+
+3) Firestore → Rules tab
+   Delete everything and paste this, then Publish:
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      match /chats/{chatId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+  }
+}
+
+4) Restart the app:
+   cd suuvieai
+   python app.py
+   Open http://localhost:5000   (NOT Live Server, NOT 127.0.0.1)
+
+5) Sign in → send a message
+   - Status should flash "Saved ✓"
+   - Chat appears under CHAT HISTORY
+   - Check Firestore → Data → users → (your uid) → chats
+
+NOTE:
+Even if cloud rules fail, chats still save in THIS browser
+(localStorage) so history is not lost.
+
+405 error = wrong server. Only use python app.py + localhost:5000
+========================================

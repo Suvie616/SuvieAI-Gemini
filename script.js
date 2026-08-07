@@ -1,5 +1,5 @@
 /**
- * SuvieAI — frontend
+ * SuuvieAI — frontend
  * Chat + file attachments + code rendering + image create/edit + Firebase history
  */
 
@@ -97,7 +97,7 @@ function welcomeHtml() {
   return `
     <div class="welcome" id="welcome">
       <div class="welcome-icon" aria-hidden="true">✨</div>
-      <h2>Hey, I'm SuvieAI</h2>
+      <h2>Hey, I'm SuuvieAI</h2>
       <p>Chat, write code, attach files, or create &amp; edit images.</p>
       <div class="suggestions">
         <button type="button" class="suggestion" data-prompt="Write a clean Python function that validates emails and include tests">Code: email validator</button>
@@ -264,7 +264,7 @@ function appendMessage(role, content, { error = false, images = [], attachments 
       actions.className = "gen-image-actions";
       const dl = document.createElement("a");
       dl.href = src;
-      dl.download = `SuvieAI-${Date.now()}.png`;
+      dl.download = `suuvieai-${Date.now()}.png`;
       dl.textContent = "Download";
       dl.className = "img-action";
       const edit = document.createElement("button");
@@ -333,7 +333,7 @@ function setSending(busy) {
   }
 }
 
-function resetToWelcome(title = "SuvieAI") {
+function resetToWelcome(title = "SuuvieAI") {
   history = [];
   messagesEl = null;
   activeChatId = null;
