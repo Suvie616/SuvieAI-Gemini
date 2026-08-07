@@ -248,7 +248,7 @@ def _extract_reply_and_images(payload: dict) -> tuple[str, list[str]]:
 
 
 def _call_chat(messages: list[dict], model: str | None = None) -> tuple[str | None, list[str], str | None, int]:
-    url = f"https://{API_BASE_URL}/chat/completions"
+    url = "https://suvieai-gemini.onrender.com/chat/completions"
     model = model or MODEL_NAME
     try:
         response = requests.post(
