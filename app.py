@@ -34,7 +34,7 @@ API_KEY = (os.getenv("API_KEY") or "").strip()
 API_BASE_URL = (
     os.getenv("API_BASE_URL") or "https://generativelanguage.googleapis.com/v1beta/openai"
 ).rstrip("/")
-MODEL_NAME = (os.getenv("MODEL_NAME") or "gemini-3.6-flash").strip()
+MODEL_NAME = (os.getenv("MODEL_NAME") or "gemini-flash-lite-latest").strip()
 IMAGE_MODEL = (os.getenv("IMAGE_MODEL") or "gemini-3.1-flash-image").strip()
 
 HOST = os.getenv("HOST", "0.0.0.0")
@@ -274,13 +274,26 @@ def _call_chat(messages: list[dict], model: str | None = None) -> tuple[str | No
         detail = None
         try:
             err_body = response.json()
-            err = err_body.get("error")
+            # Gemini sometimes returns a list: [{"error": {...}}]
+            if isinstance(err_body, list) and err_body:
+                err_body = err_body[0] if isinstance(err_body[0], dict) else {"error": err_body}
+            err = err_body.get("error") if isinstance(err_body, dict) else None
             if isinstance(err, dict):
                 detail = err.get("message")
             else:
-                detail = err or err_body.get("message")
+                detail = err or (err_body.get("message") if isinstance(err_body, dict) else None)
         except Exception:
             detail = (response.text or "")[:400]
+        if response.status_code == 429 or (detail and "quota" in str(detail).lower()):
+            detail = (
+                "Gemini free-tier quota exceeded (limit hit for this Google project).\n\n"
+                "What to do:\n"
+                "1) Wait for the quota to reset (often daily)\n"
+                "2) Check usage: https://ai.dev/rate-limit\n"
+                "3) Create a key on a different Google account/project, or enable billing\n"
+                "4) Update API_KEY in Render Environment and redeploy\n\n"
+                "Your app is fine — Google is rate-limiting the API key."
+            )
         return None, [], detail or f"AI service returned status {response.status_code}.", 502
 
     try:
