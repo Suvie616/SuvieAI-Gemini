@@ -71,9 +71,9 @@
           <h1 id="chatTitle">SUUWETHAAN AI</h1>
         </div>
         <div class="topbar-right">
-          <button type="button" id="arenaToggle" class="arena-toggle-btn" title="Open Code Arena">
+          <button type="button" id="arenaToggle" class="arena-toggle-btn" title="Open Workspace">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/><path d="M9 9h6v6H9z"/></svg>
-            <span>Arena</span>
+            <span>Workspace</span>
             <span id="arenaBadge" class="arena-badge hidden">0</span>
           </button>
           <div class="mode-switch" title="Response mode">
@@ -144,8 +144,8 @@
       <div class="arena-title">
         <span class="arena-dot"></span>
         <div>
-          <strong>Code Arena</strong>
-          <small>Workspace · Download · Live preview</small>
+          <strong>Workspace</strong>
+          <small>Code Arena · files · live preview</small>
         </div>
       </div>
       <div class="arena-header-actions">
@@ -154,16 +154,25 @@
       </div>
     </header>
 
+    <div class="ws-stats" id="arenaStats">
+      <span id="arenaSizeStat">0 B / 5.0 MB</span>
+      <span id="arenaCountStat">0 / 200 files</span>
+    </div>
+
     <div class="arena-toolbar">
-      <button type="button" id="arenaNewFile" class="arena-btn">+ File</button>
+      <button type="button" id="arenaNewFile" class="arena-btn" title="New file">+ File</button>
+      <button type="button" id="arenaNewFolder" class="arena-btn" title="New folder">+ Folder</button>
       <button type="button" id="arenaDownloadActive" class="arena-btn">Download</button>
-      <button type="button" id="arenaDownloadAll" class="arena-btn">Download all</button>
+      <button type="button" id="arenaDownloadAll" class="arena-btn">ZIP all</button>
       <button type="button" id="arenaClear" class="arena-btn danger">Clear</button>
     </div>
 
-    <div class="arena-body">
-      <div class="arena-files" id="arenaFileList">
-        <p class="arena-empty" id="arenaEmpty">No files yet. Ask AI for code, then click <b>Add to Arena</b> on a code block.</p>
+    <div class="arena-body workspace-layout">
+      <div class="ws-sidebar">
+        <div class="ws-sidebar-label">Explorer</div>
+        <div class="arena-files" id="arenaFileList">
+          <p class="arena-empty" id="arenaEmpty">No files yet. Ask AI for code, then click <b>+ Arena</b>.</p>
+        </div>
       </div>
       <div class="arena-editor-wrap">
         <div class="arena-editor-bar">

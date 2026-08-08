@@ -1383,7 +1383,7 @@ body.is-signed-out #signInBox {
   position: fixed;
   top: 0;
   right: 0;
-  width: min(520px, 100vw);
+  width: min(720px, 100vw);
   height: 100dvh;
   z-index: 50;
   display: flex;
@@ -1805,5 +1805,150 @@ body.arena-open .scroll-fab {
   .code-head {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+/* Workspace explorer (tree) */
+.ws-stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.95rem;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+  flex-shrink: 0;
+}
+
+.workspace-layout {
+  grid-template-rows: 1fr !important;
+  grid-template-columns: minmax(160px, 42%) 1fr;
+}
+
+.ws-sidebar {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(255,255,255,0.06);
+  background: rgba(0,0,0,0.15);
+}
+
+.ws-sidebar-label {
+  padding: 0.55rem 0.75rem 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.ws-sidebar .arena-files {
+  flex: 1;
+  min-height: 0;
+  border-bottom: 0;
+  padding: 0.25rem 0.35rem 0.75rem;
+}
+
+.ws-root {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #c4b5fd;
+  margin-bottom: 0.2rem;
+}
+
+.ws-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.32rem 0.35rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  margin-bottom: 1px;
+}
+
+.ws-row:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+.ws-row.active {
+  background: rgba(124, 108, 240, 0.16);
+  border-color: rgba(124, 108, 240, 0.3);
+}
+
+.ws-twisty {
+  width: 18px;
+  height: 18px;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.7rem;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.ws-twisty.spacer {
+  visibility: hidden;
+}
+
+.ws-icon {
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+  font-size: 0.85rem;
+}
+
+.ws-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.ws-x {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  opacity: 0;
+  flex-shrink: 0;
+}
+
+.ws-row:hover .ws-x {
+  opacity: 0.85;
+}
+
+.ws-x:hover {
+  background: rgba(248,113,113,0.15);
+  color: #fecaca;
+  opacity: 1;
+}
+
+@media (max-width: 800px) {
+  .workspace-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(140px, 32%) 1fr !important;
+  }
+  .ws-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
   }
 }

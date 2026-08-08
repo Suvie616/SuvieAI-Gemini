@@ -1188,13 +1188,17 @@ document.addEventListener("keydown", (e) => {
 
 
 // --------------------------------------------------------------------------
-// Code Arena workspace + live preview
+// Code Arena workspace + live preview (folder tree like Workspace)
 // --------------------------------------------------------------------------
 
-const ARENA_KEY = "suuwethaan_code_arena_v1";
-/** @type {{id:string,name:string,lang:string,content:string,updatedAt:number}[]} */
+const ARENA_KEY = "suuwethaan_code_arena_v2";
+const ARENA_MAX_BYTES = 5 * 1024 * 1024; // 5 MB soft
+const ARENA_MAX_FILES = 200;
+
+/** @type {{id:string,name:string,path:string,type:('file'|'folder'),lang?:string,content?:string,updatedAt:number}[]} */
 let arenaFiles = [];
 let arenaActiveId = null;
+let arenaExpanded = new Set(["/"]); // expanded folder paths
 
 const EXT_MAP = {
   javascript: "js", js: "js", jsx: "jsx", typescript: "ts", ts: "ts", tsx: "tsx",
@@ -1208,7 +1212,6 @@ const EXT_MAP = {
 function guessFileName(lang, code = "", idx = 0) {
   const l = String(lang || "text").toLowerCase();
   const ext = EXT_MAP[l] || (l.length <= 5 ? l : "txt");
-  // try to detect html document
   if (/<!doctype html>|<html[\s>]/i.test(code)) return `index-${idx + 1}.html`;
   if (ext === "css" && /body\s*\{/.test(code)) return `styles-${idx + 1}.css`;
   if (ext === "js" && /function\s+|const\s+|=>/.test(code)) return `script-${idx + 1}.js`;
@@ -1216,14 +1219,58 @@ function guessFileName(lang, code = "", idx = 0) {
   return `file-${idx + 1}.${ext}`;
 }
 
+function normPath(path) {
+  let pth = String(path || "").replace(/\\/g, "/").trim();
+  if (!pth.startsWith("/")) pth = "/" + pth;
+  pth = pth.replace(/\/+/g, "/");
+  if (pth.length > 1 && pth.endsWith("/")) pth = pth.slice(0, -1);
+  return pth || "/";
+}
+
+function parentPath(path) {
+  const pth = normPath(path);
+  if (pth === "/") return null;
+  const i = pth.lastIndexOf("/");
+  return i <= 0 ? "/" : pth.slice(0, i);
+}
+
+function baseName(path) {
+  const pth = normPath(path);
+  if (pth === "/") return "workspace";
+  return pth.split("/").pop();
+}
+
 function loadArena() {
   try {
     const raw = localStorage.getItem(ARENA_KEY);
-    arenaFiles = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(arenaFiles)) arenaFiles = [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    arenaFiles = Array.isArray(parsed) ? parsed : [];
+    // migrate old flat files without path
+    arenaFiles = arenaFiles.map((f) => {
+      if (!f.path) {
+        const name = f.name || "file.txt";
+        return {
+          ...f,
+          type: f.type || "file",
+          path: normPath("/" + name),
+          name: baseName(name),
+        };
+      }
+      return {
+        ...f,
+        path: normPath(f.path),
+        name: f.name || baseName(f.path),
+        type: f.type === "folder" ? "folder" : "file",
+      };
+    });
   } catch {
     arenaFiles = [];
   }
+  ensureRootFolder();
+}
+
+function ensureRootFolder() {
+  // virtual root only — no node required
 }
 
 function saveArena() {
@@ -1233,18 +1280,38 @@ function saveArena() {
     console.warn("arena save failed", e);
   }
   updateArenaBadge();
+  updateArenaStats();
+}
+
+function arenaByteSize() {
+  return arenaFiles.reduce((n, f) => n + (f.type === "file" ? (f.content || "").length : 0), 0);
+}
+
+function formatBytes(n) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function updateArenaBadge() {
   const badge = document.getElementById("arenaBadge");
+  const fileCount = arenaFiles.filter((f) => f.type === "file").length;
   if (!badge) return;
-  if (!arenaFiles.length) {
+  if (!fileCount) {
     badge.classList.add("hidden");
     badge.textContent = "0";
   } else {
     badge.classList.remove("hidden");
-    badge.textContent = String(arenaFiles.length);
+    badge.textContent = String(fileCount);
   }
+}
+
+function updateArenaStats() {
+  const sizeEl = document.getElementById("arenaSizeStat");
+  const countEl = document.getElementById("arenaCountStat");
+  const files = arenaFiles.filter((f) => f.type === "file").length;
+  if (sizeEl) sizeEl.textContent = `${formatBytes(arenaByteSize())} / ${formatBytes(ARENA_MAX_BYTES)}`;
+  if (countEl) countEl.textContent = `${files} / ${ARENA_MAX_FILES} files`;
 }
 
 function mimeForName(name) {
@@ -1281,15 +1348,18 @@ function downloadBlob(filename, blob) {
 }
 
 async function downloadAllArenaZip() {
-  if (!arenaFiles.length) {
-    alert("Code Arena is empty.");
+  const files = arenaFiles.filter((f) => f.type === "file");
+  if (!files.length) {
+    alert("Workspace is empty.");
     return;
   }
-  // Minimal ZIP (store only) so we don't need a library
   const zipBlob = await buildSimpleZip(
-    arenaFiles.map((f) => ({ name: f.name, data: f.content || "" }))
+    files.map((f) => ({
+      name: normPath(f.path).replace(/^\//, "") || f.name,
+      data: f.content || "",
+    }))
   );
-  downloadBlob(`SUUWETHAAN-Arena-${Date.now()}.zip`, zipBlob);
+  downloadBlob(`SUUWETHAAN-Workspace-${Date.now()}.zip`, zipBlob);
 }
 
 /** Store-only ZIP builder (no compression) */
@@ -1319,14 +1389,14 @@ async function buildSimpleZip(files) {
   }
 
   for (const f of files) {
-    const nameBytes = enc.encode(f.name.replace(/\\/g, "/"));
+    const nameBytes = enc.encode(String(f.name).replace(/\\/g, "/"));
     const data = typeof f.data === "string" ? enc.encode(f.data) : f.data;
     const crc = crc32(data);
     const local = new Uint8Array(30 + nameBytes.length);
     local.set([0x50, 0x4b, 0x03, 0x04], 0);
     local.set(u16(20), 4);
     local.set(u16(0), 6);
-    local.set(u16(0), 8); // store
+    local.set(u16(0), 8);
     local.set(u16(0), 10);
     local.set(u16(0), 12);
     local.set(u32(crc), 14);
@@ -1374,116 +1444,278 @@ async function buildSimpleZip(files) {
   return new Blob([...parts, ...central, end], { type: "application/zip" });
 }
 
-function addArenaFile(name, content, lang = "text", { open = true, flash = false } = {}) {
-  loadArena();
-  let finalName = (name || guessFileName(lang, content)).trim() || "file.txt";
-  // unique name
-  const base = finalName.replace(/(\.[^.]+)?$/, "");
-  const ext = (finalName.match(/\.[^.]+$/) || [""])[0];
+function findByPath(path) {
+  const pth = normPath(path);
+  return arenaFiles.find((f) => normPath(f.path) === pth) || null;
+}
+
+function uniquePath(desiredPath) {
+  let pth = normPath(desiredPath);
+  if (!findByPath(pth)) return pth;
+  const parent = parentPath(pth) || "/";
+  const name = baseName(pth);
+  const dot = name.lastIndexOf(".");
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  const ext = dot > 0 ? name.slice(dot) : "";
   let n = 1;
-  while (arenaFiles.some((f) => f.name === finalName && f.id !== arenaActiveId)) {
-    finalName = `${base}-${n}${ext}`;
+  while (true) {
+    const candidate = normPath((parent === "/" ? "" : parent) + "/" + `${stem}-${n}${ext}`);
+    if (!findByPath(candidate)) return candidate;
     n += 1;
   }
-  const existing = arenaFiles.find((f) => f.name === finalName);
-  if (existing) {
-    existing.content = content;
+}
+
+function ensureFolderPath(folderPath) {
+  let pth = normPath(folderPath);
+  if (pth === "/") return;
+  const parts = pth.split("/").filter(Boolean);
+  let cur = "";
+  for (const part of parts) {
+    cur += "/" + part;
+    if (!findByPath(cur)) {
+      arenaFiles.push({
+        id: uid(),
+        name: part,
+        path: cur,
+        type: "folder",
+        updatedAt: Date.now(),
+      });
+    }
+    arenaExpanded.add(cur);
+  }
+}
+
+function addArenaFile(name, content, lang = "text", { open = true, flash = false, folder = "/" } = {}) {
+  loadArena();
+  const fileCount = arenaFiles.filter((f) => f.type === "file").length;
+  if (fileCount >= ARENA_MAX_FILES) {
+    alert(`Workspace file limit reached (${ARENA_MAX_FILES}).`);
+    return null;
+  }
+  let finalName = (name || guessFileName(lang, content)).trim() || "file.txt";
+  finalName = finalName.replace(/^\/+/, "");
+  // allow nested path in name
+  let fullPath;
+  if (finalName.includes("/")) {
+    fullPath = uniquePath("/" + finalName);
+    ensureFolderPath(parentPath(fullPath));
+  } else {
+    const dir = normPath(folder || "/");
+    if (dir !== "/") ensureFolderPath(dir);
+    fullPath = uniquePath((dir === "/" ? "" : dir) + "/" + finalName);
+  }
+
+  const nextContent = content || "";
+  if (arenaByteSize() + nextContent.length > ARENA_MAX_BYTES) {
+    alert("Workspace storage limit reached (5 MB).");
+    return null;
+  }
+
+  const existing = findByPath(fullPath);
+  if (existing && existing.type === "file") {
+    existing.content = nextContent;
     existing.lang = lang;
     existing.updatedAt = Date.now();
     arenaActiveId = existing.id;
   } else {
     const file = {
       id: uid(),
-      name: finalName,
+      name: baseName(fullPath),
+      path: fullPath,
+      type: "file",
       lang: lang || "text",
-      content: content || "",
+      content: nextContent,
       updatedAt: Date.now(),
     };
-    arenaFiles.unshift(file);
+    arenaFiles.push(file);
     arenaActiveId = file.id;
   }
+  // expand parents
+  let p = parentPath(fullPath);
+  while (p) {
+    arenaExpanded.add(p);
+    p = parentPath(p);
+  }
+  arenaExpanded.add("/");
   saveArena();
   renderArena();
   if (open) openArena();
-  if (flash) setStatus(null, "Added to Arena");
+  if (flash) setStatus(null, "Added to Workspace");
   return arenaActiveId;
 }
 
+function addArenaFolder(folderPath) {
+  loadArena();
+  let pth = normPath(folderPath || "/new-folder");
+  if (pth === "/") pth = "/new-folder";
+  pth = uniquePath(pth);
+  ensureFolderPath(parentPath(pth) || "/");
+  if (!findByPath(pth)) {
+    arenaFiles.push({
+      id: uid(),
+      name: baseName(pth),
+      path: pth,
+      type: "folder",
+      updatedAt: Date.now(),
+    });
+  }
+  arenaExpanded.add(pth);
+  saveArena();
+  renderArena();
+  return pth;
+}
+
 function getActiveArenaFile() {
-  return arenaFiles.find((f) => f.id === arenaActiveId) || null;
+  const f = arenaFiles.find((x) => x.id === arenaActiveId);
+  return f && f.type === "file" ? f : null;
+}
+
+function childrenOf(folderPath) {
+  const parent = normPath(folderPath);
+  return arenaFiles
+    .filter((f) => parentPath(f.path) === parent)
+    .sort((a, b) => {
+      if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+}
+
+function iconFor(name, type = "file") {
+  if (type === "folder") return "📁";
+  const ext = (name.split(".").pop() || "").toLowerCase();
+  if (ext === "html" || ext === "htm") return "🌐";
+  if (ext === "css") return "🎨";
+  if (ext === "js" || ext === "ts" || ext === "jsx" || ext === "tsx") return "⚡";
+  if (ext === "py") return "🐍";
+  if (ext === "json") return "{}";
+  if (ext === "svg") return "◇";
+  if (ext === "md") return "📝";
+  return "📄";
+}
+
+function deleteArenaNode(id) {
+  const node = arenaFiles.find((f) => f.id === id);
+  if (!node) return;
+  if (node.type === "folder") {
+    const prefix = normPath(node.path) + "/";
+    arenaFiles = arenaFiles.filter(
+      (f) => f.id !== id && !normPath(f.path).startsWith(prefix) && normPath(f.path) !== normPath(node.path)
+    );
+  } else {
+    arenaFiles = arenaFiles.filter((f) => f.id !== id);
+  }
+  if (arenaActiveId === id) arenaActiveId = null;
+  // if active file was inside deleted folder
+  const active = arenaFiles.find((f) => f.id === arenaActiveId);
+  if (!active) {
+    const firstFile = arenaFiles.find((f) => f.type === "file");
+    arenaActiveId = firstFile?.id || null;
+  }
+  saveArena();
+  renderArena();
+}
+
+function renderArenaTree(folderPath, depth, listEl) {
+  const kids = childrenOf(folderPath);
+  kids.forEach((f) => {
+    const row = document.createElement("div");
+    row.className = "ws-row" + (f.id === arenaActiveId ? " active" : "");
+    row.style.paddingLeft = `${10 + depth * 14}px`;
+    row.dataset.id = f.id;
+    row.dataset.path = f.path;
+
+    if (f.type === "folder") {
+      const open = arenaExpanded.has(normPath(f.path));
+      row.innerHTML = `
+        <button type="button" class="ws-twisty" title="Expand">${open ? "▾" : "▸"}</button>
+        <span class="ws-icon">📁</span>
+        <span class="ws-name"></span>
+        <button type="button" class="ws-x" title="Delete folder">×</button>`;
+      row.querySelector(".ws-name").textContent = f.name;
+      row.querySelector(".ws-twisty").addEventListener("click", (e) => {
+        e.stopPropagation();
+        const pth = normPath(f.path);
+        if (arenaExpanded.has(pth)) arenaExpanded.delete(pth);
+        else arenaExpanded.add(pth);
+        renderArena();
+      });
+      row.addEventListener("click", () => {
+        const pth = normPath(f.path);
+        if (!arenaExpanded.has(pth)) {
+          arenaExpanded.add(pth);
+          renderArena();
+        }
+      });
+      row.querySelector(".ws-x").addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (confirm(`Delete folder ${f.name} and everything inside?`)) deleteArenaNode(f.id);
+      });
+      listEl.appendChild(row);
+      if (open) renderArenaTree(f.path, depth + 1, listEl);
+    } else {
+      row.innerHTML = `
+        <span class="ws-twisty spacer"></span>
+        <span class="ws-icon">${iconFor(f.name, "file")}</span>
+        <span class="ws-name"></span>
+        <button type="button" class="ws-x" title="Delete file">×</button>`;
+      row.querySelector(".ws-name").textContent = f.name;
+      row.title = f.path;
+      row.addEventListener("click", (e) => {
+        if (e.target.closest(".ws-x")) return;
+        arenaActiveId = f.id;
+        renderArena();
+      });
+      row.querySelector(".ws-x").addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (confirm(`Delete ${f.name}?`)) deleteArenaNode(f.id);
+      });
+      listEl.appendChild(row);
+    }
+  });
 }
 
 function renderArena() {
   const list = document.getElementById("arenaFileList");
   const editor = document.getElementById("arenaEditor");
   const activeName = document.getElementById("arenaActiveName");
-  const empty = document.getElementById("arenaEmpty");
   if (!list || !editor) return;
 
   list.innerHTML = "";
-  if (!arenaFiles.length) {
+  const files = arenaFiles.filter((f) => f.type === "file");
+  const folders = arenaFiles.filter((f) => f.type === "folder");
+
+  if (!files.length && !folders.length) {
     list.innerHTML = `<p class="arena-empty" id="arenaEmpty">No files yet. Ask AI for code, then click <b>+ Arena</b> on a code block.</p>`;
     editor.value = "";
     editor.disabled = true;
     if (activeName) activeName.textContent = "No file selected";
     updateArenaBadge();
+    updateArenaStats();
     return;
   }
 
-  arenaFiles
-    .slice()
-    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-    .forEach((f) => {
-      const row = document.createElement("button");
-      row.type = "button";
-      row.className = "arena-file" + (f.id === arenaActiveId ? " active" : "");
-      row.innerHTML = `
-        <span class="arena-file-icon">${iconFor(f.name)}</span>
-        <span class="arena-file-meta">
-          <span class="arena-file-name"></span>
-          <span class="arena-file-sub"></span>
-        </span>
-        <span class="arena-file-x" title="Remove">×</span>`;
-      row.querySelector(".arena-file-name").textContent = f.name;
-      row.querySelector(".arena-file-sub").textContent = `${f.lang || "file"} · ${(f.content || "").length} chars`;
-      row.addEventListener("click", (e) => {
-        if (e.target.closest(".arena-file-x")) return;
-        arenaActiveId = f.id;
-        renderArena();
-      });
-      row.querySelector(".arena-file-x").addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        arenaFiles = arenaFiles.filter((x) => x.id !== f.id);
-        if (arenaActiveId === f.id) arenaActiveId = arenaFiles[0]?.id || null;
-        saveArena();
-        renderArena();
-      });
-      list.appendChild(row);
-    });
+  // root header
+  const root = document.createElement("div");
+  root.className = "ws-root";
+  root.innerHTML = `<span class="ws-icon">📂</span><span>workspace</span>`;
+  list.appendChild(root);
+
+  renderArenaTree("/", 0, list);
 
   const active = getActiveArenaFile();
   if (active) {
     editor.disabled = false;
     if (document.activeElement !== editor) editor.value = active.content || "";
-    if (activeName) activeName.textContent = active.name;
+    if (activeName) activeName.textContent = active.path || active.name;
   } else {
     editor.disabled = true;
     editor.value = "";
     if (activeName) activeName.textContent = "No file selected";
   }
   updateArenaBadge();
-}
-
-function iconFor(name) {
-  const ext = (name.split(".").pop() || "").toLowerCase();
-  if (ext === "html" || ext === "htm") return "🌐";
-  if (ext === "css") return "🎨";
-  if (ext === "js" || ext === "ts") return "⚡";
-  if (ext === "py") return "🐍";
-  if (ext === "json") return "{}";
-  if (ext === "svg") return "◇";
-  return "📄";
+  updateArenaStats();
 }
 
 function openArena() {
@@ -1592,7 +1824,6 @@ function openLivePreview(name, code, lang) {
   modal.hidden = false;
   modal.classList.remove("hidden");
   document.body.classList.add("live-open");
-  // stash for refresh/open tab
   modal.dataset.liveName = name || "preview";
   modal.dataset.liveLang = lang || "";
   modal.dataset.liveCode = code || "";
@@ -1629,6 +1860,35 @@ function openLiveInTab() {
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
+function defaultTemplate(ext) {
+  if (ext === "html" || ext === "htm") {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SUUWETHAAN Live</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background:#0b0d14; color:#eef0f6; display:grid; place-items:center; min-height:100vh; margin:0; }
+    .card { padding:2rem 2.2rem; border-radius:18px; background:#151925; border:1px solid rgba(255,255,255,.08); }
+    button { margin-top:1rem; border:0; border-radius:10px; padding:.7rem 1rem; background:linear-gradient(135deg,#7c6cf0,#9b7bff); color:white; font-weight:700; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Hello from Workspace</h1>
+    <p>Edit me, then hit Live view.</p>
+    <button onclick="alert('Live server works!')">Click me</button>
+  </div>
+</body>
+</html>`;
+  }
+  if (ext === "css") return "body {\n  font-family: system-ui, sans-serif;\n}\n";
+  if (ext === "js") return 'console.log("Hello from Workspace");\n';
+  if (ext === "py") return 'print("Hello from Workspace")\n';
+  return "";
+}
+
 function initCodeArena() {
   loadArena();
   renderArena();
@@ -1647,22 +1907,25 @@ function initCodeArena() {
     active.content = e.target.value;
     active.updatedAt = Date.now();
     saveArena();
-    // update subtitle counts lightly
-    const row = document.querySelector(`.arena-file.active .arena-file-sub`);
-    if (row) row.textContent = `${active.lang || "file"} · ${active.content.length} chars`;
   });
 
   document.getElementById("arenaNewFile")?.addEventListener("click", () => {
-    const name = prompt("File name", "index.html");
+    const name = prompt("File path (folders allowed)", "src/index.html");
     if (!name) return;
     const ext = (name.split(".").pop() || "txt").toLowerCase();
     addArenaFile(name, defaultTemplate(ext), ext, { open: true });
   });
 
+  document.getElementById("arenaNewFolder")?.addEventListener("click", () => {
+    const name = prompt("Folder path", "src/components");
+    if (!name) return;
+    addArenaFolder("/" + name.replace(/^\/+/, ""));
+    openArena();
+  });
+
   document.getElementById("arenaDownloadActive")?.addEventListener("click", () => {
     const active = getActiveArenaFile();
     if (!active) return alert("Select a file first.");
-    // flush editor
     const editor = document.getElementById("arenaEditor");
     if (editor && !editor.disabled) active.content = editor.value;
     downloadTextFile(active.name, active.content);
@@ -1680,9 +1943,10 @@ function initCodeArena() {
 
   document.getElementById("arenaClear")?.addEventListener("click", () => {
     if (!arenaFiles.length) return;
-    if (!confirm("Clear all files from Code Arena?")) return;
+    if (!confirm("Clear entire workspace?")) return;
     arenaFiles = [];
     arenaActiveId = null;
+    arenaExpanded = new Set(["/"]);
     saveArena();
     renderArena();
   });
@@ -1720,36 +1984,6 @@ function initCodeArena() {
     }
   });
 }
-
-function defaultTemplate(ext) {
-  if (ext === "html" || ext === "htm") {
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SUUWETHAAN Live</title>
-  <style>
-    body { font-family: system-ui, sans-serif; background:#0b0d14; color:#eef0f6; display:grid; place-items:center; min-height:100vh; margin:0; }
-    .card { padding:2rem 2.2rem; border-radius:18px; background:#151925; border:1px solid rgba(255,255,255,.08); }
-    button { margin-top:1rem; border:0; border-radius:10px; padding:.7rem 1rem; background:linear-gradient(135deg,#7c6cf0,#9b7bff); color:white; font-weight:700; cursor:pointer; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>Hello from Code Arena</h1>
-    <p>Edit me, then hit Live view.</p>
-    <button onclick="alert('Live server works!')">Click me</button>
-  </div>
-</body>
-</html>`;
-  }
-  if (ext === "css") return "body {\n  font-family: system-ui, sans-serif;\n}\n";
-  if (ext === "js") return 'console.log("Hello from Code Arena");\n';
-  if (ext === "py") return 'print("Hello from Code Arena")\n';
-  return "";
-}
-
 
 // --------------------------------------------------------------------------
 // Boot
