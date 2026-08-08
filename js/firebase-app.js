@@ -1,5 +1,5 @@
 /**
- * SuuvieAI — Firebase Auth (Google) + Firestore chat storage
+ * SUUWETHAAN AI — Firebase Auth (Google) + Firestore chat storage
  *
  * Shape:
  *   users/{uid}/chats/{chatId}
@@ -47,7 +47,7 @@ let provider = null;
 let ready = false;
 let initError = null;
 
-const LS_PREFIX = "suuvieai_chats_v2_";
+const LS_PREFIX = "suuwethaan_chats_v2_";
 
 const FIREBASE_ENABLED = Boolean(
   (_fbConfigMod.FIREBASE_ENABLED === true) ||
@@ -118,7 +118,7 @@ export function initFirebase() {
   if (!FIREBASE_ENABLED) {
     initError =
       "Firebase config not set. Open js/firebase-config.js and paste your web config.";
-    console.warn("[SuuvieAI]", initError);
+    console.warn("[SUUWETHAAN AI]", initError);
     return false;
   }
 
@@ -132,11 +132,11 @@ export function initFirebase() {
     provider.setCustomParameters({ prompt: "select_account" });
     setPersistence(auth, browserLocalPersistence).catch(() => {});
     ready = true;
-    console.info("[SuuvieAI] Firebase ready", window.location.origin, firebaseConfig.projectId);
+    console.info("[SUUWETHAAN AI] Firebase ready", window.location.origin, firebaseConfig.projectId);
     return true;
   } catch (err) {
     initError = err?.message || String(err);
-    console.error("[SuuvieAI] Firebase init failed:", err);
+    console.error("[SUUWETHAAN AI] Firebase init failed:", err);
     ready = false;
     return false;
   }
@@ -151,12 +151,12 @@ export function watchAuth(callback) {
   getRedirectResult(auth)
     .then((result) => {
       if (result?.user) {
-        console.info("[SuuvieAI] Signed in via redirect:", result.user.email);
+        console.info("[SUUWETHAAN AI] Signed in via redirect:", result.user.email);
       }
     })
     .catch((err) => {
-      console.error("[SuuvieAI] redirect result error:", err);
-      if (err?.code) window.__suuvieLastAuthError = formatAuthError(err);
+      console.error("[SUUWETHAAN AI] redirect result error:", err);
+      if (err?.code) window.__suuwethaanLastAuthError = formatAuthError(err);
     });
 
   return onAuthStateChanged(auth, callback);
@@ -172,11 +172,11 @@ export async function signInWithGoogle(mode = "popup") {
 
   try {
     const cred = await signInWithPopup(auth, provider);
-    console.info("[SuuvieAI] popup sign-in OK:", cred?.user?.email || cred?.user?.uid);
+    console.info("[SUUWETHAAN AI] popup sign-in OK:", cred?.user?.email || cred?.user?.uid);
     return cred;
   } catch (err) {
     const code = err?.code || "";
-    console.error("[SuuvieAI] popup sign-in error:", code, err);
+    console.error("[SUUWETHAAN AI] popup sign-in error:", code, err);
     // User closed popup — don't redirect, just surface the error
     if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
       throw err;
@@ -185,7 +185,7 @@ export async function signInWithGoogle(mode = "popup") {
       code === "auth/popup-blocked" ||
       code === "auth/operation-not-supported-in-this-environment"
     ) {
-      console.warn("[SuuvieAI] popup blocked → redirect");
+      console.warn("[SUUWETHAAN AI] popup blocked → redirect");
       await signInWithRedirect(auth, provider);
       return null;
     }
@@ -254,7 +254,7 @@ function writeLocalChats(uid, chats) {
   try {
     localStorage.setItem(lsKey(uid), JSON.stringify(chats));
   } catch (err) {
-    console.warn("[SuuvieAI] localStorage write failed:", err);
+    console.warn("[SUUWETHAAN AI] localStorage write failed:", err);
   }
 }
 
@@ -358,8 +358,8 @@ export async function createChat(uid, title = "New chat") {
       });
       id = ref.id;
     } catch (err) {
-      console.error("[SuuvieAI] createChat cloud failed:", err);
-      window.__suuvieLastStoreError = formatFirestoreError(err);
+      console.error("[SUUWETHAAN AI] createChat cloud failed:", err);
+      window.__suuwethaanLastStoreError = formatFirestoreError(err);
     }
   }
 
@@ -399,8 +399,8 @@ export async function listChats(uid, max = 50) {
         upsertLocalChat(uid, merged);
       });
     } catch (err) {
-      console.error("[SuuvieAI] listChats cloud failed:", err);
-      window.__suuvieLastStoreError = formatFirestoreError(err);
+      console.error("[SUUWETHAAN AI] listChats cloud failed:", err);
+      window.__suuwethaanLastStoreError = formatFirestoreError(err);
     }
   }
 
@@ -465,12 +465,12 @@ export async function loadChat(uid, chatId) {
               }
             }
           } catch (e) {
-            console.warn("[SuuvieAI] legacy messages read failed:", e);
+            console.warn("[SUUWETHAAN AI] legacy messages read failed:", e);
           }
         }
       }
     } catch (err) {
-      console.warn("[SuuvieAI] loadChat cloud failed:", err);
+      console.warn("[SUUWETHAAN AI] loadChat cloud failed:", err);
     }
   }
 
@@ -535,7 +535,7 @@ export async function saveTurn(uid, chatId, userText, assistantText) {
     updatedAtMs: now,
   };
   upsertLocalChat(uid, next);
-  console.info("[SuuvieAI] saved locally", chatId, "msgs", messages.length);
+  console.info("[SUUWETHAAN AI] saved locally", chatId, "msgs", messages.length);
 
   if (!ready) {
     return { cloud: false, error: "Firebase not ready", chat: next };
@@ -556,10 +556,10 @@ export async function saveTurn(uid, chatId, userText, assistantText) {
       },
       { merge: true }
     );
-    console.info("[SuuvieAI] saved to Firestore", chatId, "msgs", messages.length);
+    console.info("[SUUWETHAAN AI] saved to Firestore", chatId, "msgs", messages.length);
     return { cloud: true, chat: next };
   } catch (err) {
-    console.error("[SuuvieAI] saveTurn cloud failed:", err);
+    console.error("[SUUWETHAAN AI] saveTurn cloud failed:", err);
     return { cloud: false, error: formatFirestoreError(err), chat: next };
   }
 }
@@ -570,7 +570,7 @@ export async function deleteChat(uid, chatId) {
   try {
     await deleteDoc(doc(db, "users", uid, "chats", chatId));
   } catch (err) {
-    console.warn("[SuuvieAI] deleteChat cloud failed:", err);
+    console.warn("[SUUWETHAAN AI] deleteChat cloud failed:", err);
     throw new Error(formatFirestoreError(err));
   }
 }

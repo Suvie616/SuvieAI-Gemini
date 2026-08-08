@@ -2,7 +2,7 @@
 # https://dashboard.render.com
 services:
   - type: web
-    name: SuvieAI-Gemini
+    name: SUUWETHAAN AI-Gemini
     runtime: python
     plan: free
     region: oregon

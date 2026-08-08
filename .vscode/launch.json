@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "SuuvieAI: Run Server",
+      "name": "SUUWETHAAN AI: Run Server",
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/app.py",
@@ -13,7 +13,7 @@
       "python": "${command:python.interpreterPath}"
     },
     {
-      "name": "SuuvieAI: Run + Open Browser",
+      "name": "SUUWETHAAN AI: Run + Open Browser",
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/app.py",

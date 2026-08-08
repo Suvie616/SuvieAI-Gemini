@@ -1,4 +1,4 @@
-# SuuvieAI
+# SUUWETHAAN AI
 
 ChatGPT-style app with:
 
@@ -14,7 +14,7 @@ ChatGPT-style app with:
 
 ```bash
 git clone <your-repo-url>
-cd suuvieai
+cd SuvieAI-Gemini  # or your project folder
 python -m venv .venv
 
 # Windows
@@ -40,7 +40,7 @@ Double-click `start.bat`
 
 ### VS Code
 1. Open folder  
-2. Run Task → **SuuvieAI: Setup**  
+2. Run Task → **SUUWETHAAN AI: Setup**  
 3. Select `.venv` interpreter  
 4. Press **F5**
 

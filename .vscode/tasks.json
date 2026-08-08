@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "SuuvieAI: Create venv",
+      "label": "SUUWETHAAN AI: Create venv",
       "type": "shell",
       "command": "python -m venv .venv || python3 -m venv .venv",
       "options": {
@@ -15,7 +15,7 @@
       }
     },
     {
-      "label": "SuuvieAI: Install dependencies",
+      "label": "SUUWETHAAN AI: Install dependencies",
       "type": "shell",
       "command": "${workspaceFolder}/.venv/Scripts/python.exe -m pip install -r requirements.txt || ${workspaceFolder}/.venv/bin/python -m pip install -r requirements.txt || python -m pip install -r requirements.txt || python3 -m pip install -r requirements.txt",
       "options": {
@@ -28,11 +28,11 @@
       }
     },
     {
-      "label": "SuuvieAI: Setup (venv + install)",
+      "label": "SUUWETHAAN AI: Setup (venv + install)",
       "dependsOrder": "sequence",
       "dependsOn": [
-        "SuuvieAI: Create venv",
-        "SuuvieAI: Install dependencies"
+        "SUUWETHAAN AI: Create venv",
+        "SUUWETHAAN AI: Install dependencies"
       ],
       "problemMatcher": [],
       "group": {
@@ -41,7 +41,7 @@
       }
     },
     {
-      "label": "SuuvieAI: Run server",
+      "label": "SUUWETHAAN AI: Run server",
       "type": "shell",
       "command": "${workspaceFolder}/.venv/Scripts/python.exe app.py || ${workspaceFolder}/.venv/bin/python app.py || python app.py || python3 app.py",
       "options": {
@@ -49,13 +49,13 @@
       },
       "isBackground": true,
       "problemMatcher": {
-        "owner": "suuvieai",
+        "owner": "suuwethaan",
         "pattern": {
           "regexp": "^$"
         },
         "background": {
           "activeOnStart": true,
-          "beginsPattern": "SuuvieAI",
+          "beginsPattern": "SUUWETHAAN AI",
           "endsPattern": "Running on|Open the URL"
         }
       },

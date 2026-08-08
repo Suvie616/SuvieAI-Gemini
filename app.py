@@ -1,5 +1,5 @@
 """
-SuuvieAI — Flask backend
+SUUWETHAAN AI — Flask backend
 - Chat (text + file attachments)
 - Image create / edit via Gemini
 - Code-friendly system prompt
@@ -49,7 +49,7 @@ MAX_ATTACHMENTS = 8
 app = Flask(__name__)
 
 SYSTEM_PROMPT = (
-    "You are SuuvieAI, a friendly modern assistant with strong coding skills.\n"
+    "You are SUUWETHAAN AI, a friendly modern assistant with strong coding skills.\n"
     "- Write clear, working code with brief explanations.\n"
     "- Use fenced markdown code blocks with a language tag (```python, ```js, etc).\n"
     "- When the user attaches files, use their contents as context.\n"
@@ -594,7 +594,7 @@ if __name__ == "__main__":
 
     print()
     print("=" * 56)
-    print("  SuuvieAI")
+    print("  SUUWETHAAN AI")
     print("=" * 56)
     print(f"  Open  →  {public_url}")
     print("  Features: chat · files · code · image create/edit")

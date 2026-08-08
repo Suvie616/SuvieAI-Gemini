@@ -1,5 +1,5 @@
 /**
- * SuuvieAI — frontend
+ * SUUWETHAAN AI — frontend
  * Chat + file attachments + code rendering + image create/edit + Firebase history
  */
 
@@ -97,7 +97,7 @@ function welcomeHtml() {
   return `
     <div class="welcome" id="welcome">
       <div class="welcome-icon" aria-hidden="true">✨</div>
-      <h2>Hey, I'm SuuvieAI</h2>
+      <h2>Hey, I'm SUUWETHAAN AI</h2>
       <p>Chat, write code, attach files, or create &amp; edit images.</p>
       <div class="suggestions">
         <button type="button" class="suggestion" data-prompt="Write a clean Python function that validates emails and include tests">Code: email validator</button>
@@ -343,7 +343,7 @@ function appendMessage(role, content, { error = false, images = [], attachments 
     toolbar.className = "bubble-toolbar";
     const label = document.createElement("span");
     label.className = "bubble-label";
-    label.textContent = "SuuvieAI";
+    label.textContent = "SUUWETHAAN AI";
     const copyAll = document.createElement("button");
     copyAll.type = "button";
     copyAll.className = "copy-reply-btn";
@@ -418,7 +418,7 @@ function appendMessage(role, content, { error = false, images = [], attachments 
       actions.className = "gen-image-actions";
       const dl = document.createElement("a");
       dl.href = src;
-      dl.download = `suuvieai-${Date.now()}.png`;
+      dl.download = `suuwethaan-${Date.now()}.png`;
       dl.textContent = "Download";
       dl.className = "img-action";
       const edit = document.createElement("button");
@@ -499,7 +499,7 @@ function setSending(busy) {
   }
 }
 
-function resetToWelcome(title = "SuuvieAI") {
+function resetToWelcome(title = "SUUWETHAAN AI") {
   history = [];
   messagesEl = null;
   activeChatId = null;

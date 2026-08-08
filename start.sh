@@ -4,7 +4,7 @@ cd "$(dirname "$0")"
 
 echo
 echo "================================================"
-echo "  SuuvieAI - setup and launch"
+echo "  SUUWETHAAN AI - setup and launch"
 echo "================================================"
 echo
 
@@ -41,6 +41,6 @@ if [ ! -f ".env" ]; then
   fi
 fi
 
-echo "[3/3] Starting SuuvieAI..."
+echo "[3/3] Starting SUUWETHAAN AI..."
 echo
 exec .venv/bin/python app.py

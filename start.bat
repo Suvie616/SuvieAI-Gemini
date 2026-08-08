@@ -2,10 +2,10 @@
 setlocal EnableExtensions
 cd /d "%~dp0"
 
-title SuuvieAI
+title SUUWETHAAN AI
 echo.
 echo ================================================
-echo   SuuvieAI - setup and launch
+echo   SUUWETHAAN AI - setup and launch
 echo ================================================
 echo.
 
@@ -57,7 +57,7 @@ if not exist ".env" (
   )
 )
 
-echo [3/3] Starting SuuvieAI...
+echo [3/3] Starting SUUWETHAAN AI...
 echo.
 ".venv\Scripts\python.exe" app.py
 echo.

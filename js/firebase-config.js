@@ -1,5 +1,5 @@
 /**
- * SuuvieAI — Firebase web config (live)
+ * SUUWETHAAN AI — Firebase web config (live)
  *
  * Firebase Console checklist:
  *   1) Authentication → Google → Enable
