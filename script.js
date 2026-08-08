@@ -126,21 +126,25 @@ function setMode(mode) {
 }
 
 // --------------------------------------------------------------------------
-// Markdown-lite (code blocks + inline)
+// Markdown-lite (code blocks + inline) + scroll helpers
 // --------------------------------------------------------------------------
+
+const COPY_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
+const CHECK_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>`;
 
 function renderMarkdown(text) {
   if (!text) return "";
   const blocks = [];
-  let html = String(text).replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+  // fenced code blocks
+  let html = String(text).replace(/```([^\n`]*)\n?([\s\S]*?)```/g, (_, lang, code) => {
     const i = blocks.length;
-    const safeLang = (lang || "text").replace(/[^\w+-]/g, "") || "text";
+    const safeLang = String(lang || "text").trim().replace(/[^\w+-]/g, "") || "text";
     const safeCode = escapeHtml(code.replace(/\n$/, ""));
     blocks.push(
       `<div class="code-block">
         <div class="code-head">
           <span class="code-lang">${safeLang}</span>
-          <button type="button" class="copy-btn" data-copy="${i}">Copy</button>
+          <button type="button" class="copy-btn" data-copy="${i}" title="Copy code">${COPY_ICON}<span>Copy</span></button>
         </div>
         <pre><code class="language-${safeLang}" data-code-idx="${i}">${safeCode}</code></pre>
       </div>`
@@ -148,34 +152,152 @@ function renderMarkdown(text) {
     return `\u0000BLOCK${i}\u0000`;
   });
 
-  // escape remaining then restore light markdown
+  // escape remaining plain text
   html = escapeHtml(html);
-  html = html.replace(/`([^`\n]+)`/g, "<code class=\"inline-code\">$1</code>");
-  html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+
+  // headings
+  html = html.replace(/(^|\n)###### (.+)/g, "$1<h4>$2</h4>");
+  html = html.replace(/(^|\n)##### (.+)/g, "$1<h4>$2</h4>");
+  html = html.replace(/(^|\n)#### (.+)/g, "$1<h4>$2</h4>");
   html = html.replace(/(^|\n)### (.+)/g, "$1<h4>$2</h4>");
   html = html.replace(/(^|\n)## (.+)/g, "$1<h3>$2</h3>");
   html = html.replace(/(^|\n)# (.+)/g, "$1<h3>$2</h3>");
-  html = html.replace(/\n/g, "<br>");
+
+  // bold / italic / inline code
+  html = html.replace(/`([^`\n]+)`/g, '<code class="inline-code">$1</code>');
+  html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "<em>$1</em>");
+
+  // simple lists
+  html = html.replace(/(^|\n)(?:- |\* )(.+)/g, "$1<li>$2</li>");
+  html = html.replace(/(?:<li>.*<\/li>\n?)+/g, (m) => `<ul>${m.replace(/\n/g, "")}</ul>`);
+  html = html.replace(/(^|\n)(\d+)\. (.+)/g, "$1<li>$3</li>");
+
+  // paragraphs: split on blank lines, keep blocks
+  html = html
+    .split(/\n{2,}/)
+    .map((chunk) => {
+      const c = chunk.trim();
+      if (!c) return "";
+      if (c.includes("\u0000BLOCK")) return c.replace(/\n/g, "");
+      if (/^<(h3|h4|ul|ol|div)/.test(c)) return c.replace(/\n/g, "<br>");
+      return `<p>${c.replace(/\n/g, "<br>")}</p>`;
+    })
+    .join("");
+
   html = html.replace(/\u0000BLOCK(\d+)\u0000/g, (_, i) => blocks[Number(i)]);
   return html;
 }
 
+async function copyTextToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
 function bindCodeCopy(root) {
   root.querySelectorAll(".copy-btn").forEach((btn) => {
-    btn.addEventListener("click", async () => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       const idx = btn.getAttribute("data-copy");
       const codeEl = root.querySelector(`code[data-code-idx="${idx}"]`);
       const text = codeEl ? codeEl.textContent : "";
-      try {
-        await navigator.clipboard.writeText(text);
-        btn.textContent = "Copied";
-        setTimeout(() => (btn.textContent = "Copy"), 1200);
-      } catch {
-        btn.textContent = "Failed";
-        setTimeout(() => (btn.textContent = "Copy"), 1200);
-      }
+      const label = btn.querySelector("span");
+      const ok = await copyTextToClipboard(text);
+      btn.classList.toggle("copied", ok);
+      btn.innerHTML = ok
+        ? `${CHECK_ICON}<span>Copied</span>`
+        : `${COPY_ICON}<span>Failed</span>`;
+      setTimeout(() => {
+        btn.classList.remove("copied");
+        btn.innerHTML = `${COPY_ICON}<span>Copy</span>`;
+      }, 1600);
     });
   });
+}
+
+function scrollChatToBottom(force = false) {
+  if (!chatbox) return;
+  const distance =
+    chatbox.scrollHeight - chatbox.scrollTop - chatbox.clientHeight;
+  // auto-follow unless user scrolled far up (unless forced)
+  if (force || distance < 140) {
+    requestAnimationFrame(() => {
+      chatbox.scrollTo({
+        top: chatbox.scrollHeight,
+        behavior: force ? "smooth" : "auto",
+      });
+      // second pass after images/layout
+      setTimeout(() => {
+        chatbox.scrollTop = chatbox.scrollHeight;
+      }, 40);
+    });
+  }
+  updateScrollFab();
+}
+
+function scrollToElement(el) {
+  if (!chatbox || !el) return;
+  // put the start of the AI reply near the top-ish of the chat viewport
+  const boxRect = chatbox.getBoundingClientRect();
+  const elRect = el.getBoundingClientRect();
+  const offset = elRect.top - boxRect.top + chatbox.scrollTop - 24;
+  chatbox.scrollTo({ top: Math.max(0, offset), behavior: "smooth" });
+  // if reply is short, still end near bottom
+  setTimeout(() => {
+    const stillBelow =
+      el.offsetTop + el.offsetHeight >
+      chatbox.scrollTop + chatbox.clientHeight - 40;
+    if (stillBelow) {
+      // keep following the bottom of the new reply
+      chatbox.scrollTo({
+        top: el.offsetTop + el.offsetHeight - chatbox.clientHeight + 32,
+        behavior: "smooth",
+      });
+    }
+    updateScrollFab();
+  }, 280);
+}
+
+function updateScrollFab() {
+  const fab = document.getElementById("scrollFab");
+  if (!fab || !chatbox) return;
+  const distance =
+    chatbox.scrollHeight - chatbox.scrollTop - chatbox.clientHeight;
+  fab.classList.toggle("show", distance > 180);
+}
+
+function ensureScrollFab() {
+  if (document.getElementById("scrollFab")) return;
+  const main = document.querySelector(".main");
+  if (!main) return;
+  const fab = document.createElement("button");
+  fab.type = "button";
+  fab.id = "scrollFab";
+  fab.className = "scroll-fab";
+  fab.innerHTML = "↓ Latest";
+  fab.title = "Jump to latest message";
+  fab.addEventListener("click", () => scrollChatToBottom(true));
+  main.appendChild(fab);
+  chatbox?.addEventListener("scroll", () => updateScrollFab(), { passive: true });
 }
 
 // --------------------------------------------------------------------------
@@ -203,7 +325,7 @@ function closeLightbox() {
   if (lightboxImg) lightboxImg.src = "";
 }
 
-function appendMessage(role, content, { error = false, images = [], attachments = [] } = {}) {
+function appendMessage(role, content, { error = false, images = [], attachments = [], scrollMode = "bottom" } = {}) {
   const container = ensureMessagesContainer();
   const row = document.createElement("div");
   row.className = `msg ${role}${error ? " error" : ""}`;
@@ -214,6 +336,37 @@ function appendMessage(role, content, { error = false, images = [], attachments 
 
   const bubble = document.createElement("div");
   bubble.className = "bubble";
+
+  // AI toolbar with copy-all
+  if (role === "assistant" && !error) {
+    const toolbar = document.createElement("div");
+    toolbar.className = "bubble-toolbar";
+    const label = document.createElement("span");
+    label.className = "bubble-label";
+    label.textContent = "SuuvieAI";
+    const copyAll = document.createElement("button");
+    copyAll.type = "button";
+    copyAll.className = "copy-reply-btn";
+    copyAll.innerHTML = `${COPY_ICON}<span>Copy</span>`;
+    copyAll.title = "Copy full reply";
+    copyAll.addEventListener("click", async () => {
+      const ok = await copyTextToClipboard(content || "");
+      copyAll.classList.toggle("copied", ok);
+      copyAll.innerHTML = ok
+        ? `${CHECK_ICON}<span>Copied</span>`
+        : `${COPY_ICON}<span>Failed</span>`;
+      setTimeout(() => {
+        copyAll.classList.remove("copied");
+        copyAll.innerHTML = `${COPY_ICON}<span>Copy</span>`;
+      }, 1600);
+    });
+    toolbar.appendChild(label);
+    toolbar.appendChild(copyAll);
+    bubble.appendChild(toolbar);
+  }
+
+  const bodyWrap = document.createElement("div");
+  if (role === "assistant" && !error) bodyWrap.className = "bubble-body";
 
   // user attachments chips
   if (attachments?.length) {
@@ -234,7 +387,7 @@ function appendMessage(role, content, { error = false, images = [], attachments 
         wrap.appendChild(chip);
       }
     });
-    bubble.appendChild(wrap);
+    bodyWrap.appendChild(wrap);
   }
 
   if (content) {
@@ -246,7 +399,7 @@ function appendMessage(role, content, { error = false, images = [], attachments 
       body.innerHTML = renderMarkdown(content);
       bindCodeCopy(body);
     }
-    bubble.appendChild(body);
+    bodyWrap.appendChild(body);
   }
 
   if (images?.length) {
@@ -259,6 +412,7 @@ function appendMessage(role, content, { error = false, images = [], attachments 
       img.src = src;
       img.alt = "Generated image";
       img.loading = "lazy";
+      img.addEventListener("load", () => scrollChatToBottom());
       img.addEventListener("click", () => openLightbox(src));
       const actions = document.createElement("div");
       actions.className = "gen-image-actions";
@@ -272,7 +426,6 @@ function appendMessage(role, content, { error = false, images = [], attachments 
       edit.className = "img-action";
       edit.textContent = "Edit this";
       edit.addEventListener("click", () => {
-        // attach this image for editing
         pendingAttachments = [
           {
             id: uid(),
@@ -295,13 +448,22 @@ function appendMessage(role, content, { error = false, images = [], attachments 
       fig.appendChild(actions);
       gallery.appendChild(fig);
     });
-    bubble.appendChild(gallery);
+    bodyWrap.appendChild(gallery);
   }
+
+  if (bodyWrap.childNodes.length) bubble.appendChild(bodyWrap);
 
   row.appendChild(avatar);
   row.appendChild(bubble);
   container.appendChild(row);
-  chatbox.scrollTop = chatbox.scrollHeight;
+
+  if (scrollMode === "reply" && role === "assistant") {
+    scrollToElement(row);
+  } else if (scrollMode !== "none") {
+    scrollChatToBottom(scrollMode === "smooth");
+  } else {
+    updateScrollFab();
+  }
   return row;
 }
 
@@ -312,9 +474,13 @@ function appendTyping() {
   row.id = "typingRow";
   row.innerHTML = `
     <div class="avatar">AI</div>
-    <div class="bubble"><div class="typing" aria-label="typing"><span></span><span></span><span></span></div></div>`;
+    <div class="bubble">
+      <div class="bubble-body">
+        <div class="typing" aria-label="typing"><span></span><span></span><span></span></div>
+      </div>
+    </div>`;
   container.appendChild(row);
-  chatbox.scrollTop = chatbox.scrollHeight;
+  scrollChatToBottom(true);
 }
 
 function removeTyping() {
@@ -361,8 +527,10 @@ function renderLoadedMessages(messages, title) {
       appendMessage(m.role, m.content, {
         images: m.images || [],
         attachments: m.attachments || [],
+        scrollMode: "none",
       })
     );
+    scrollChatToBottom(true);
   }
   chatTitleEl.textContent = title || "Chat";
   highlightActiveChat();
@@ -739,6 +907,7 @@ async function sendMessage(rawText) {
 
   // show user bubble with attachment thumbs
   appendMessage("user", userMessage || "(attachments)", {
+    scrollMode: "smooth",
     attachments: attachments.map((a) => ({
       name: a.name,
       type: a.type,
@@ -783,14 +952,18 @@ async function sendMessage(rawText) {
     removeTyping();
 
     if (!res.ok || data.error) {
-      appendMessage("assistant", explainHttpError(res.status, data), { error: true });
+      appendMessage("assistant", explainHttpError(res.status, data), {
+        error: true,
+        scrollMode: "reply",
+      });
       setStatus("error", "Error");
       return;
     }
 
     const reply = data.reply || (data.images?.length ? "Here's your image." : "(empty)");
     const images = Array.isArray(data.images) ? data.images : [];
-    appendMessage("assistant", reply, { images });
+    // Jump chat to the new AI response
+    appendMessage("assistant", reply, { images, scrollMode: "reply" });
 
     history.push({ role: "user", content: userMessage || "(attachments)" });
     history.push({ role: "assistant", content: reply, images });
@@ -958,6 +1131,7 @@ document.addEventListener("keydown", (e) => {
 // --------------------------------------------------------------------------
 
 bindSuggestions();
+ensureScrollFab();
 const firebaseOk = initFirebase();
 renderAuthUi();
 setMode("auto");
