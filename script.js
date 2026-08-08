@@ -125,6 +125,15 @@ function setMode(mode) {
   });
 }
 
+
+function setChatLayoutMode(mode) {
+  const main = document.querySelector(".main");
+  if (!main) return;
+  main.classList.toggle("chat-home", mode === "home");
+  main.classList.toggle("chat-active", mode === "active");
+}
+
+
 // --------------------------------------------------------------------------
 // Markdown-lite (code blocks + inline) + scroll helpers
 // --------------------------------------------------------------------------
@@ -366,6 +375,7 @@ function ensureScrollFab() {
 
 function ensureMessagesContainer() {
   document.getElementById("welcome")?.remove();
+  setChatLayoutMode("active");
   if (!messagesEl || !messagesEl.isConnected) {
     messagesEl = document.createElement("div");
     messagesEl.className = "messages";
@@ -569,6 +579,8 @@ function resetToWelcome(title = "SUUWETHAAN AI") {
   bindSuggestions(chatbox);
   chatTitleEl.textContent = title;
   highlightActiveChat();
+  setChatLayoutMode("home");
+  updateScrollFab();
 }
 
 function renderLoadedMessages(messages, title) {
@@ -582,7 +594,9 @@ function renderLoadedMessages(messages, title) {
   chatbox.innerHTML = "";
   if (!list.length) {
     chatbox.innerHTML = `<div class="welcome" id="welcome"><div class="welcome-icon">💬</div><h2>${escapeHtml(title || "Chat")}</h2><p>No messages yet.</p></div>`;
+    setChatLayoutMode("home");
   } else {
+    setChatLayoutMode("active");
     list.forEach((m) =>
       appendMessage(m.role, m.content, {
         images: m.images || [],
@@ -1152,6 +1166,7 @@ newChatBtn?.addEventListener("click", async () => {
       chatbox.innerHTML = welcomeHtml();
       bindSuggestions(chatbox);
       chatTitleEl.textContent = "New chat";
+      setChatLayoutMode("home");
       await refreshChatList();
     } catch {
       resetToWelcome();
@@ -1995,6 +2010,7 @@ initCodeArena();
 const firebaseOk = initFirebase();
 renderAuthUi();
 setMode("auto");
+setChatLayoutMode(document.getElementById("welcome") ? "home" : "active");
 
 if (window.location.hostname === "127.0.0.1") {
   showAuthError("Use http://localhost:5000 — not 127.0.0.1");
