@@ -16,7 +16,7 @@
         <div class="brand-mark" aria-hidden="true">SA</div>
         <div class="brand-text">
           <span class="brand-name">SUUWETHAAN AI</span>
-          <span class="brand-tag">Chat · Code · Images</span>
+          <span class="brand-tag">Chat · Code Arena · Images</span>
         </div>
       </div>
 
@@ -71,6 +71,11 @@
           <h1 id="chatTitle">SUUWETHAAN AI</h1>
         </div>
         <div class="topbar-right">
+          <button type="button" id="arenaToggle" class="arena-toggle-btn" title="Open Code Arena">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/><path d="M9 9h6v6H9z"/></svg>
+            <span>Arena</span>
+            <span id="arenaBadge" class="arena-badge hidden">0</span>
+          </button>
           <div class="mode-switch" title="Response mode">
             <button type="button" class="mode-btn active" data-mode="auto" id="modeAuto">Auto</button>
             <button type="button" class="mode-btn" data-mode="chat" id="modeChat">Chat</button>
@@ -131,6 +136,68 @@
   </div>
 
   <div id="sidebarBackdrop" class="sidebar-backdrop" hidden></div>
+
+  <!-- Code Arena workspace -->
+  <div id="arenaBackdrop" class="arena-backdrop hidden" hidden></div>
+  <aside id="codeArena" class="code-arena" aria-label="Code Arena workspace" aria-hidden="true">
+    <header class="arena-header">
+      <div class="arena-title">
+        <span class="arena-dot"></span>
+        <div>
+          <strong>Code Arena</strong>
+          <small>Workspace · Download · Live preview</small>
+        </div>
+      </div>
+      <div class="arena-header-actions">
+        <button type="button" id="arenaLiveBtn" class="arena-btn primary" title="Open live preview">Live view</button>
+        <button type="button" id="arenaClose" class="arena-icon-btn" aria-label="Close Arena">×</button>
+      </div>
+    </header>
+
+    <div class="arena-toolbar">
+      <button type="button" id="arenaNewFile" class="arena-btn">+ File</button>
+      <button type="button" id="arenaDownloadActive" class="arena-btn">Download</button>
+      <button type="button" id="arenaDownloadAll" class="arena-btn">Download all</button>
+      <button type="button" id="arenaClear" class="arena-btn danger">Clear</button>
+    </div>
+
+    <div class="arena-body">
+      <div class="arena-files" id="arenaFileList">
+        <p class="arena-empty" id="arenaEmpty">No files yet. Ask AI for code, then click <b>Add to Arena</b> on a code block.</p>
+      </div>
+      <div class="arena-editor-wrap">
+        <div class="arena-editor-bar">
+          <span id="arenaActiveName" class="arena-active-name">No file selected</span>
+          <div class="arena-editor-actions">
+            <button type="button" id="arenaCopyFile" class="arena-btn tiny">Copy</button>
+            <button type="button" id="arenaPreviewFile" class="arena-btn tiny primary">Live view</button>
+          </div>
+        </div>
+        <textarea id="arenaEditor" class="arena-editor" spellcheck="false" placeholder="Select a file or add code from chat…"></textarea>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Live Server preview modal -->
+  <div id="liveModal" class="live-modal hidden" hidden aria-modal="true" role="dialog" aria-label="Live preview">
+    <div class="live-shell">
+      <header class="live-bar">
+        <div class="live-bar-left">
+          <span class="live-pill">LIVE</span>
+          <span id="liveTitle" class="live-title">preview</span>
+        </div>
+        <div class="live-bar-actions">
+          <button type="button" id="liveRefresh" class="arena-btn tiny">Refresh</button>
+          <button type="button" id="liveOpenTab" class="arena-btn tiny">Open tab</button>
+          <button type="button" id="liveClose" class="arena-icon-btn" aria-label="Close live view">×</button>
+        </div>
+      </header>
+      <div class="live-frame-wrap">
+        <iframe id="liveFrame" class="live-frame" title="Live preview" sandbox="allow-scripts allow-forms allow-modals allow-same-origin"></iframe>
+      </div>
+    </div>
+  </div>
+
   <div id="lightbox" class="lightbox hidden" role="dialog" aria-modal="true" aria-label="Image preview">
     <button type="button" class="lightbox-close" id="lightboxClose" aria-label="Close">×</button>
     <img id="lightboxImg" alt="Preview" />

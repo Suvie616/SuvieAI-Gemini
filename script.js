@@ -139,12 +139,22 @@ function renderMarkdown(text) {
   let html = String(text).replace(/```([^\n`]*)\n?([\s\S]*?)```/g, (_, lang, code) => {
     const i = blocks.length;
     const safeLang = String(lang || "text").trim().replace(/[^\w+-]/g, "") || "text";
-    const safeCode = escapeHtml(code.replace(/\n$/, ""));
+    const rawCode = code.replace(/\n$/, "");
+    const safeCode = escapeHtml(rawCode);
+    const fname = guessFileName(safeLang, rawCode, i);
     blocks.push(
-      `<div class="code-block">
+      `<div class="code-block" data-lang="${safeLang}" data-filename="${escapeHtml(fname)}">
         <div class="code-head">
           <span class="code-lang">${safeLang}</span>
-          <button type="button" class="copy-btn" data-copy="${i}" title="Copy code">${COPY_ICON}<span>Copy</span></button>
+          <div class="code-actions">
+            <button type="button" class="copy-btn" data-copy="${i}" title="Copy code">${COPY_ICON}<span>Copy</span></button>
+            <button type="button" class="arena-add-btn" data-copy="${i}" title="Add to Code Arena">+ Arena</button>
+            <button type="button" class="dl-btn" data-copy="${i}" title="Download file">↓ File</button>
+            <button type="button" class="live-btn" data-copy="${i}" title="Live preview">Live</button>
+          </div>
+        </div>
+        <div class="code-file-row">
+          <span class="code-fname">${escapeHtml(fname)}</span>
         </div>
         <pre><code class="language-${safeLang}" data-code-idx="${i}">${safeCode}</code></pre>
       </div>`
@@ -220,7 +230,6 @@ function bindCodeCopy(root) {
       const idx = btn.getAttribute("data-copy");
       const codeEl = root.querySelector(`code[data-code-idx="${idx}"]`);
       const text = codeEl ? codeEl.textContent : "";
-      const label = btn.querySelector("span");
       const ok = await copyTextToClipboard(text);
       btn.classList.toggle("copied", ok);
       btn.innerHTML = ok
@@ -230,6 +239,57 @@ function bindCodeCopy(root) {
         btn.classList.remove("copied");
         btn.innerHTML = `${COPY_ICON}<span>Copy</span>`;
       }, 1600);
+    });
+  });
+
+  root.querySelectorAll(".arena-add-btn").forEach((btn) => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const block = btn.closest(".code-block");
+      const idx = btn.getAttribute("data-copy");
+      const codeEl = root.querySelector(`code[data-code-idx="${idx}"]`);
+      const code = codeEl ? codeEl.textContent : "";
+      const lang = block?.dataset.lang || "text";
+      const name = block?.dataset.filename || guessFileName(lang, code);
+      addArenaFile(name, code, lang, { open: true, flash: true });
+      btn.textContent = "Added ✓";
+      setTimeout(() => { btn.textContent = "+ Arena"; }, 1400);
+    });
+  });
+
+  root.querySelectorAll(".dl-btn").forEach((btn) => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const block = btn.closest(".code-block");
+      const idx = btn.getAttribute("data-copy");
+      const codeEl = root.querySelector(`code[data-code-idx="${idx}"]`);
+      const code = codeEl ? codeEl.textContent : "";
+      const name = block?.dataset.filename || "file.txt";
+      downloadTextFile(name, code);
+      btn.textContent = "Saved";
+      setTimeout(() => { btn.textContent = "↓ File"; }, 1200);
+    });
+  });
+
+  root.querySelectorAll(".live-btn").forEach((btn) => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const block = btn.closest(".code-block");
+      const idx = btn.getAttribute("data-copy");
+      const codeEl = root.querySelector(`code[data-code-idx="${idx}"]`);
+      const code = codeEl ? codeEl.textContent : "";
+      const lang = block?.dataset.lang || "html";
+      const name = block?.dataset.filename || guessFileName(lang, code);
+      openLivePreview(name, code, lang);
     });
   });
 }
@@ -1126,12 +1186,578 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeLightbox();
 });
 
+
+// --------------------------------------------------------------------------
+// Code Arena workspace + live preview
+// --------------------------------------------------------------------------
+
+const ARENA_KEY = "suuwethaan_code_arena_v1";
+/** @type {{id:string,name:string,lang:string,content:string,updatedAt:number}[]} */
+let arenaFiles = [];
+let arenaActiveId = null;
+
+const EXT_MAP = {
+  javascript: "js", js: "js", jsx: "jsx", typescript: "ts", ts: "ts", tsx: "tsx",
+  python: "py", py: "py", html: "html", htm: "html", css: "css", scss: "scss",
+  json: "json", md: "md", markdown: "md", bash: "sh", shell: "sh", sh: "sh",
+  java: "java", go: "go", rust: "rs", rs: "rs", c: "c", cpp: "cpp", "c++": "cpp",
+  php: "php", rb: "rb", ruby: "rb", sql: "sql", xml: "xml", yaml: "yml", yml: "yml",
+  text: "txt", txt: "txt", svg: "svg",
+};
+
+function guessFileName(lang, code = "", idx = 0) {
+  const l = String(lang || "text").toLowerCase();
+  const ext = EXT_MAP[l] || (l.length <= 5 ? l : "txt");
+  // try to detect html document
+  if (/<!doctype html>|<html[\s>]/i.test(code)) return `index-${idx + 1}.html`;
+  if (ext === "css" && /body\s*\{/.test(code)) return `styles-${idx + 1}.css`;
+  if (ext === "js" && /function\s+|const\s+|=>/.test(code)) return `script-${idx + 1}.js`;
+  if (ext === "py") return `main-${idx + 1}.py`;
+  return `file-${idx + 1}.${ext}`;
+}
+
+function loadArena() {
+  try {
+    const raw = localStorage.getItem(ARENA_KEY);
+    arenaFiles = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(arenaFiles)) arenaFiles = [];
+  } catch {
+    arenaFiles = [];
+  }
+}
+
+function saveArena() {
+  try {
+    localStorage.setItem(ARENA_KEY, JSON.stringify(arenaFiles));
+  } catch (e) {
+    console.warn("arena save failed", e);
+  }
+  updateArenaBadge();
+}
+
+function updateArenaBadge() {
+  const badge = document.getElementById("arenaBadge");
+  if (!badge) return;
+  if (!arenaFiles.length) {
+    badge.classList.add("hidden");
+    badge.textContent = "0";
+  } else {
+    badge.classList.remove("hidden");
+    badge.textContent = String(arenaFiles.length);
+  }
+}
+
+function mimeForName(name) {
+  const ext = (name.split(".").pop() || "").toLowerCase();
+  const map = {
+    html: "text/html", htm: "text/html", css: "text/css", js: "text/javascript",
+    mjs: "text/javascript", json: "application/json", svg: "image/svg+xml",
+    py: "text/x-python", txt: "text/plain", md: "text/markdown",
+  };
+  return map[ext] || "text/plain";
+}
+
+function downloadTextFile(filename, content) {
+  const blob = new Blob([content ?? ""], { type: mimeForName(filename) + ";charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename || "file.txt";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+function downloadBlob(filename, blob) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+async function downloadAllArenaZip() {
+  if (!arenaFiles.length) {
+    alert("Code Arena is empty.");
+    return;
+  }
+  // Minimal ZIP (store only) so we don't need a library
+  const zipBlob = await buildSimpleZip(
+    arenaFiles.map((f) => ({ name: f.name, data: f.content || "" }))
+  );
+  downloadBlob(`SUUWETHAAN-Arena-${Date.now()}.zip`, zipBlob);
+}
+
+/** Store-only ZIP builder (no compression) */
+async function buildSimpleZip(files) {
+  const enc = new TextEncoder();
+  const parts = [];
+  const central = [];
+  let offset = 0;
+
+  function u16(n) {
+    const b = new Uint8Array(2);
+    b[0] = n & 255; b[1] = (n >> 8) & 255;
+    return b;
+  }
+  function u32(n) {
+    const b = new Uint8Array(4);
+    b[0] = n & 255; b[1] = (n >> 8) & 255; b[2] = (n >> 16) & 255; b[3] = (n >> 24) & 255;
+    return b;
+  }
+  function crc32(buf) {
+    let c = ~0;
+    for (let i = 0; i < buf.length; i++) {
+      c ^= buf[i];
+      for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1));
+    }
+    return ~c >>> 0;
+  }
+
+  for (const f of files) {
+    const nameBytes = enc.encode(f.name.replace(/\\/g, "/"));
+    const data = typeof f.data === "string" ? enc.encode(f.data) : f.data;
+    const crc = crc32(data);
+    const local = new Uint8Array(30 + nameBytes.length);
+    local.set([0x50, 0x4b, 0x03, 0x04], 0);
+    local.set(u16(20), 4);
+    local.set(u16(0), 6);
+    local.set(u16(0), 8); // store
+    local.set(u16(0), 10);
+    local.set(u16(0), 12);
+    local.set(u32(crc), 14);
+    local.set(u32(data.length), 18);
+    local.set(u32(data.length), 22);
+    local.set(u16(nameBytes.length), 26);
+    local.set(u16(0), 28);
+    local.set(nameBytes, 30);
+    parts.push(local, data);
+
+    const cen = new Uint8Array(46 + nameBytes.length);
+    cen.set([0x50, 0x4b, 0x01, 0x02], 0);
+    cen.set(u16(20), 4);
+    cen.set(u16(20), 6);
+    cen.set(u16(0), 8);
+    cen.set(u16(0), 10);
+    cen.set(u16(0), 12);
+    cen.set(u16(0), 14);
+    cen.set(u32(crc), 16);
+    cen.set(u32(data.length), 20);
+    cen.set(u32(data.length), 24);
+    cen.set(u16(nameBytes.length), 28);
+    cen.set(u16(0), 30);
+    cen.set(u16(0), 32);
+    cen.set(u16(0), 34);
+    cen.set(u16(0), 36);
+    cen.set(u32(0), 38);
+    cen.set(u32(offset), 42);
+    cen.set(nameBytes, 46);
+    central.push(cen);
+    offset += local.length + data.length;
+  }
+
+  const centralSize = central.reduce((s, x) => s + x.length, 0);
+  const end = new Uint8Array(22);
+  end.set([0x50, 0x4b, 0x05, 0x06], 0);
+  end.set(u16(0), 4);
+  end.set(u16(0), 6);
+  end.set(u16(files.length), 8);
+  end.set(u16(files.length), 10);
+  end.set(u32(centralSize), 12);
+  end.set(u32(offset), 16);
+  end.set(u16(0), 20);
+
+  return new Blob([...parts, ...central, end], { type: "application/zip" });
+}
+
+function addArenaFile(name, content, lang = "text", { open = true, flash = false } = {}) {
+  loadArena();
+  let finalName = (name || guessFileName(lang, content)).trim() || "file.txt";
+  // unique name
+  const base = finalName.replace(/(\.[^.]+)?$/, "");
+  const ext = (finalName.match(/\.[^.]+$/) || [""])[0];
+  let n = 1;
+  while (arenaFiles.some((f) => f.name === finalName && f.id !== arenaActiveId)) {
+    finalName = `${base}-${n}${ext}`;
+    n += 1;
+  }
+  const existing = arenaFiles.find((f) => f.name === finalName);
+  if (existing) {
+    existing.content = content;
+    existing.lang = lang;
+    existing.updatedAt = Date.now();
+    arenaActiveId = existing.id;
+  } else {
+    const file = {
+      id: uid(),
+      name: finalName,
+      lang: lang || "text",
+      content: content || "",
+      updatedAt: Date.now(),
+    };
+    arenaFiles.unshift(file);
+    arenaActiveId = file.id;
+  }
+  saveArena();
+  renderArena();
+  if (open) openArena();
+  if (flash) setStatus(null, "Added to Arena");
+  return arenaActiveId;
+}
+
+function getActiveArenaFile() {
+  return arenaFiles.find((f) => f.id === arenaActiveId) || null;
+}
+
+function renderArena() {
+  const list = document.getElementById("arenaFileList");
+  const editor = document.getElementById("arenaEditor");
+  const activeName = document.getElementById("arenaActiveName");
+  const empty = document.getElementById("arenaEmpty");
+  if (!list || !editor) return;
+
+  list.innerHTML = "";
+  if (!arenaFiles.length) {
+    list.innerHTML = `<p class="arena-empty" id="arenaEmpty">No files yet. Ask AI for code, then click <b>+ Arena</b> on a code block.</p>`;
+    editor.value = "";
+    editor.disabled = true;
+    if (activeName) activeName.textContent = "No file selected";
+    updateArenaBadge();
+    return;
+  }
+
+  arenaFiles
+    .slice()
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    .forEach((f) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "arena-file" + (f.id === arenaActiveId ? " active" : "");
+      row.innerHTML = `
+        <span class="arena-file-icon">${iconFor(f.name)}</span>
+        <span class="arena-file-meta">
+          <span class="arena-file-name"></span>
+          <span class="arena-file-sub"></span>
+        </span>
+        <span class="arena-file-x" title="Remove">×</span>`;
+      row.querySelector(".arena-file-name").textContent = f.name;
+      row.querySelector(".arena-file-sub").textContent = `${f.lang || "file"} · ${(f.content || "").length} chars`;
+      row.addEventListener("click", (e) => {
+        if (e.target.closest(".arena-file-x")) return;
+        arenaActiveId = f.id;
+        renderArena();
+      });
+      row.querySelector(".arena-file-x").addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        arenaFiles = arenaFiles.filter((x) => x.id !== f.id);
+        if (arenaActiveId === f.id) arenaActiveId = arenaFiles[0]?.id || null;
+        saveArena();
+        renderArena();
+      });
+      list.appendChild(row);
+    });
+
+  const active = getActiveArenaFile();
+  if (active) {
+    editor.disabled = false;
+    if (document.activeElement !== editor) editor.value = active.content || "";
+    if (activeName) activeName.textContent = active.name;
+  } else {
+    editor.disabled = true;
+    editor.value = "";
+    if (activeName) activeName.textContent = "No file selected";
+  }
+  updateArenaBadge();
+}
+
+function iconFor(name) {
+  const ext = (name.split(".").pop() || "").toLowerCase();
+  if (ext === "html" || ext === "htm") return "🌐";
+  if (ext === "css") return "🎨";
+  if (ext === "js" || ext === "ts") return "⚡";
+  if (ext === "py") return "🐍";
+  if (ext === "json") return "{}";
+  if (ext === "svg") return "◇";
+  return "📄";
+}
+
+function openArena() {
+  const panel = document.getElementById("codeArena");
+  const bd = document.getElementById("arenaBackdrop");
+  if (!panel) return;
+  loadArena();
+  renderArena();
+  panel.classList.add("open");
+  panel.setAttribute("aria-hidden", "false");
+  if (bd) {
+    bd.hidden = false;
+    bd.classList.remove("hidden");
+  }
+  document.body.classList.add("arena-open");
+}
+
+function closeArena() {
+  const panel = document.getElementById("codeArena");
+  const bd = document.getElementById("arenaBackdrop");
+  panel?.classList.remove("open");
+  panel?.setAttribute("aria-hidden", "true");
+  if (bd) {
+    bd.hidden = true;
+    bd.classList.add("hidden");
+  }
+  document.body.classList.remove("arena-open");
+}
+
+function buildLiveHtml(name, code, lang) {
+  const l = (lang || "").toLowerCase();
+  const ext = (name.split(".").pop() || "").toLowerCase();
+  const isHtml =
+    l === "html" ||
+    ext === "html" ||
+    ext === "htm" ||
+    /<!doctype html>|<html[\s>]/i.test(code || "");
+  if (isHtml) return code;
+
+  if (l === "svg" || ext === "svg" || /^\s*<svg[\s>]/i.test(code || "")) {
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;display:grid;place-items:center;background:#0b0d14}svg{max-width:90vw;max-height:90vh}</style></head><body>${code}</body></html>`;
+  }
+
+  if (l === "css" || ext === "css") {
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      html,body{margin:0;font-family:Inter,system-ui,sans-serif;background:#0b0d14;color:#eef0f6}
+      body{padding:2rem}
+      .demo{max-width:520px;margin:10vh auto;padding:1.5rem;border-radius:16px;border:1px solid rgba(255,255,255,.1);background:#151925}
+      button{margin-top:1rem;padding:.7rem 1rem;border:0;border-radius:10px;background:linear-gradient(135deg,#7c6cf0,#9b7bff);color:#fff;font-weight:600}
+      ${code}
+    </style></head><body><div class="demo"><h1>CSS Live Preview</h1><p>Your stylesheet is applied to this demo card.</p><button>Demo button</button></div></body></html>`;
+  }
+
+  if (l === "javascript" || l === "js" || ext === "js") {
+    const safe = String(code || "").replace(/<\/script/gi, "<\\/script");
+    const open = "<" + "script>";
+    const close = "</" + "script>";
+    return (
+      `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      html,body{margin:0;background:#0b0d14;color:#e8ebf4;font-family:ui-monospace,Menlo,Consolas,monospace}
+      #out{padding:1rem;white-space:pre-wrap}
+      .ok{color:#6ee7b7}.err{color:#fca5a5}
+    </style></head><body><div id="out"></div>` +
+      open +
+      `
+      const out = document.getElementById('out');
+      const log = (...a) => { out.innerHTML += '<div class="ok">' + a.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(' ') + '</div>'; };
+      const error = (...a) => { out.innerHTML += '<div class="err">' + a.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(' ') + '</div>'; };
+      console.log = log; console.error = error; console.warn = log;
+      try { ${safe}
+} catch (e) { error(String(e && e.stack || e)); }
+    ` +
+      close +
+      `</body></html>`
+    );
+  }
+
+  const esc = String(code || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  const safeName = String(name || "file").replace(/</g, "&lt;");
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    body{margin:0;background:#0b0d14;color:#e6edf3;font-family:ui-monospace,Menlo,monospace;padding:1.25rem}
+    h1{font-family:Inter,system-ui,sans-serif;font-size:1rem;color:#c4b5fd}
+    pre{white-space:pre-wrap}
+  </style></head><body><h1>${safeName}</h1><pre>${esc}</pre>
+  <p style="color:#8b92a8">Live preview runs best for HTML, CSS, JS, or SVG. This file is shown as text.</p>
+  </body></html>`;
+}
+
+let liveObjectUrl = null;
+
+function openLivePreview(name, code, lang) {
+  const modal = document.getElementById("liveModal");
+  const frame = document.getElementById("liveFrame");
+  const title = document.getElementById("liveTitle");
+  if (!modal || !frame) return;
+
+  const html = buildLiveHtml(name, code, lang);
+  if (liveObjectUrl) URL.revokeObjectURL(liveObjectUrl);
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  liveObjectUrl = URL.createObjectURL(blob);
+  frame.src = liveObjectUrl;
+  if (title) title.textContent = name || "preview";
+  modal.hidden = false;
+  modal.classList.remove("hidden");
+  document.body.classList.add("live-open");
+  // stash for refresh/open tab
+  modal.dataset.liveName = name || "preview";
+  modal.dataset.liveLang = lang || "";
+  modal.dataset.liveCode = code || "";
+}
+
+function closeLivePreview() {
+  const modal = document.getElementById("liveModal");
+  const frame = document.getElementById("liveFrame");
+  if (frame) frame.src = "about:blank";
+  if (liveObjectUrl) {
+    URL.revokeObjectURL(liveObjectUrl);
+    liveObjectUrl = null;
+  }
+  if (modal) {
+    modal.hidden = true;
+    modal.classList.add("hidden");
+  }
+  document.body.classList.remove("live-open");
+}
+
+function refreshLivePreview() {
+  const modal = document.getElementById("liveModal");
+  if (!modal || modal.classList.contains("hidden")) return;
+  openLivePreview(modal.dataset.liveName, modal.dataset.liveCode, modal.dataset.liveLang);
+}
+
+function openLiveInTab() {
+  const modal = document.getElementById("liveModal");
+  if (!modal) return;
+  const html = buildLiveHtml(modal.dataset.liveName, modal.dataset.liveCode, modal.dataset.liveLang);
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank", "noopener,noreferrer");
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+function initCodeArena() {
+  loadArena();
+  renderArena();
+
+  document.getElementById("arenaToggle")?.addEventListener("click", () => {
+    const panel = document.getElementById("codeArena");
+    if (panel?.classList.contains("open")) closeArena();
+    else openArena();
+  });
+  document.getElementById("arenaClose")?.addEventListener("click", closeArena);
+  document.getElementById("arenaBackdrop")?.addEventListener("click", closeArena);
+
+  document.getElementById("arenaEditor")?.addEventListener("input", (e) => {
+    const active = getActiveArenaFile();
+    if (!active) return;
+    active.content = e.target.value;
+    active.updatedAt = Date.now();
+    saveArena();
+    // update subtitle counts lightly
+    const row = document.querySelector(`.arena-file.active .arena-file-sub`);
+    if (row) row.textContent = `${active.lang || "file"} · ${active.content.length} chars`;
+  });
+
+  document.getElementById("arenaNewFile")?.addEventListener("click", () => {
+    const name = prompt("File name", "index.html");
+    if (!name) return;
+    const ext = (name.split(".").pop() || "txt").toLowerCase();
+    addArenaFile(name, defaultTemplate(ext), ext, { open: true });
+  });
+
+  document.getElementById("arenaDownloadActive")?.addEventListener("click", () => {
+    const active = getActiveArenaFile();
+    if (!active) return alert("Select a file first.");
+    // flush editor
+    const editor = document.getElementById("arenaEditor");
+    if (editor && !editor.disabled) active.content = editor.value;
+    downloadTextFile(active.name, active.content);
+  });
+
+  document.getElementById("arenaDownloadAll")?.addEventListener("click", () => {
+    const editor = document.getElementById("arenaEditor");
+    const active = getActiveArenaFile();
+    if (active && editor && !editor.disabled) {
+      active.content = editor.value;
+      saveArena();
+    }
+    downloadAllArenaZip();
+  });
+
+  document.getElementById("arenaClear")?.addEventListener("click", () => {
+    if (!arenaFiles.length) return;
+    if (!confirm("Clear all files from Code Arena?")) return;
+    arenaFiles = [];
+    arenaActiveId = null;
+    saveArena();
+    renderArena();
+  });
+
+  document.getElementById("arenaCopyFile")?.addEventListener("click", async () => {
+    const active = getActiveArenaFile();
+    if (!active) return;
+    const editor = document.getElementById("arenaEditor");
+    const text = editor && !editor.disabled ? editor.value : active.content;
+    const ok = await copyTextToClipboard(text || "");
+    setStatus(null, ok ? "Copied file" : "Copy failed");
+  });
+
+  const previewActive = () => {
+    const active = getActiveArenaFile();
+    if (!active) return alert("Select a file first.");
+    const editor = document.getElementById("arenaEditor");
+    if (editor && !editor.disabled) active.content = editor.value;
+    openLivePreview(active.name, active.content, active.lang);
+  };
+  document.getElementById("arenaPreviewFile")?.addEventListener("click", previewActive);
+  document.getElementById("arenaLiveBtn")?.addEventListener("click", previewActive);
+
+  document.getElementById("liveClose")?.addEventListener("click", closeLivePreview);
+  document.getElementById("liveRefresh")?.addEventListener("click", refreshLivePreview);
+  document.getElementById("liveOpenTab")?.addEventListener("click", openLiveInTab);
+  document.getElementById("liveModal")?.addEventListener("click", (e) => {
+    if (e.target.id === "liveModal") closeLivePreview();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      if (!document.getElementById("liveModal")?.classList.contains("hidden")) closeLivePreview();
+      else if (document.getElementById("codeArena")?.classList.contains("open")) closeArena();
+    }
+  });
+}
+
+function defaultTemplate(ext) {
+  if (ext === "html" || ext === "htm") {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SUUWETHAAN Live</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background:#0b0d14; color:#eef0f6; display:grid; place-items:center; min-height:100vh; margin:0; }
+    .card { padding:2rem 2.2rem; border-radius:18px; background:#151925; border:1px solid rgba(255,255,255,.08); }
+    button { margin-top:1rem; border:0; border-radius:10px; padding:.7rem 1rem; background:linear-gradient(135deg,#7c6cf0,#9b7bff); color:white; font-weight:700; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Hello from Code Arena</h1>
+    <p>Edit me, then hit Live view.</p>
+    <button onclick="alert('Live server works!')">Click me</button>
+  </div>
+</body>
+</html>`;
+  }
+  if (ext === "css") return "body {\n  font-family: system-ui, sans-serif;\n}\n";
+  if (ext === "js") return 'console.log("Hello from Code Arena");\n';
+  if (ext === "py") return 'print("Hello from Code Arena")\n';
+  return "";
+}
+
+
 // --------------------------------------------------------------------------
 // Boot
 // --------------------------------------------------------------------------
 
 bindSuggestions();
 ensureScrollFab();
+initCodeArena();
 const firebaseOk = initFirebase();
 renderAuthUi();
 setMode("auto");
